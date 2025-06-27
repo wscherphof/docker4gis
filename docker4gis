@@ -68,7 +68,8 @@ export PIPELINE_DOCKER_USER=${PIPELINE_DOCKER_USER:-$SYSTEM_TEAMPROJECT}
 
 export DEVOPS_ORGANISATION=${DEVOPS_ORGANISATION:-'merkatordev'}
 export DEVOPS_DOCKER_REGISTRY=${DEVOPS_DOCKER_REGISTRY:-"docker.merkator.com"}
-export DEVOPS_VPN_POOL=${DEVOPS_VPN_POOL:-'VPN Agent'}
+export DEVOPS_DEFAULT_POOL=${DEVOPS_DEFAULT_POOL:-'Default'}
+export DEVOPS_VPN_POOL=${DEVOPS_VPN_POOL:-'VPN'}
 
 package_json() {
     [ -f package.json ] || echo '{
@@ -163,6 +164,7 @@ pr:
 stages:
 - stage: $stage
   displayName: $stage_display_name
+  pool: $DEVOPS_DEFAULT_POOL
   jobs:
   - job: $job
     displayName: $job_display_name
@@ -262,9 +264,8 @@ $steps" >"$file"
   displayName: Deploy $environment stage
   dependsOn:
   - ci_stage$extra_dependency
-  # You probably need to set up a custom pool, with an agent that runs from a
-  # location that is whitelisted in your target servers' firewalls. Otherwise,
-  # you can comment out the next line.
+  # You probably need to set up a custom pool, with agents that run from a
+  # location that is whitelisted in your target servers' firewalls.
   pool: $DEVOPS_VPN_POOL
   jobs:
   - deployment: ${environment}_deploy_job
@@ -1085,7 +1086,9 @@ The \"set\" action saves the value of a variable to the local file
 - pat|p: Personal Access Token
 - registry|r: Docker Registry, default: $DEVOPS_DOCKER_REGISTRY
 - organisation|o: Organisation, default: $DEVOPS_ORGANISATION
-- pool|p: the Agent Pool name that is used in Deployment Pipeline Tasks,
+- default|d: the Agent Pool name that is used in general Pipeline Tasks,
+  default: $DEVOPS_DEFAULT_POOL
+- vpn|v: the Agent Pool name that is used in Deployment Pipeline Tasks,
   default: $DEVOPS_VPN_POOL
 "
     "$DOCKER_BASE/../$action/run.sh" "$@"

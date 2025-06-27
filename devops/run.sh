@@ -88,6 +88,7 @@ docker container run --name "$CONTAINER" \
 	--env DOCKER_USER="$DOCKER_USER" \
 	--env DEVOPS_ORGANISATION="$DEVOPS_ORGANISATION" \
 	--env DEVOPS_DOCKER_REGISTRY="$DEVOPS_DOCKER_REGISTRY" \
+	--env DEVOPS_DEFAULT_POOL="$DEVOPS_DEFAULT_POOL" \
 	--env DEVOPS_VPN_POOL="$DEVOPS_VPN_POOL" \
 	--env ENV_FILE="$container_env_file" \
 	--mount type=bind,source="$ENV_FILE",target="$container_env_file" \
