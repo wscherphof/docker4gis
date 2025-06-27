@@ -17,11 +17,33 @@ set_env() {
     local name=$1
     local message=$2
     local default=$3
-    [ -n "$default" ] && message+=" (Enter for default: $default)"
 
-    # While the value is not set, ask to provide the value.
-    value=${!name}
-    while [ -z "$value" ]; do
+    # Read current value from env_file if it exists
+    current_value=""
+    if [ -f /devops/env_file ]; then
+        # shellcheck source=/dev/null
+        source /devops/env_file
+        current_value=${!name}
+    fi
+
+    # Use current value from env_file as default, or fall back to provided
+    # default
+    if [ -n "$current_value" ]; then
+        if [ "$name" = PAT ]; then
+            default="***"
+        else
+            default="$current_value"
+        fi
+        default_type="current"
+    else
+        default="$3"
+        default_type="default"
+    fi
+
+    [ -n "$default" ] && message+=" (Enter for $default_type: $default)"
+
+    # Always ask to provide the value, using current/provided default
+    while true; do
         if [ "$name" = PAT ]; then
             # Do not echo the value entered.
             read -rsp "$message : " input_value
@@ -29,22 +51,35 @@ set_env() {
         else
             read -rp "$message : " input_value
         fi
-        value=${input_value:-$default}
-        [ -z "$value" ] && continue
-        if [ "$name" = SYSTEM_TEAMPROJECT ]; then
-            # Assign the value to the variable.
-            SYSTEM_TEAMPROJECT=$value
+
+        # Use current value if no input and no explicit default, otherwise use
+        # explicit default
+        if [ -z "$input_value" ]; then
+            if [ -n "$3" ]; then
+                value="$3"
+            else
+                value="$current_value"
+            fi
         else
-            # Call the set.sh script to save the value to the env_file. Since
-            # set.sh may amend the value given, we read the env_file back in
-            # later, to get the proper value for each variable.
-            /devops/set.sh "$name" "$value"
+            value="$input_value"
         fi
+
+        [ -n "$value" ] && break
     done
+
+    if [ "$name" = SYSTEM_TEAMPROJECT ]; then
+        # Assign the value to the variable.
+        SYSTEM_TEAMPROJECT=$value
+    else
+        # Call the set.sh script to save the value to the env_file. Since set.sh
+        # may amend the value given, we read the env_file back in later, to get
+        # the proper value for each variable.
+        /devops/set.sh "$name" "$value"
+    fi
 }
 
 set_env SYSTEM_TEAMPROJECT \
-    "Enter your DevOps Project name" \
+    "DevOps Project" \
     "$DOCKER_USER"
 
 export SYSTEM_TEAMPROJECT
@@ -54,20 +89,24 @@ export SYSTEM_TEAMPROJECT
 source /devops/env_file
 
 doc_url="https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&toc=%2Fazure%2Fdevops%2Forganizations%2Ftoc.json&tabs=Windows#create-a-pat"
-message="Enter a Personal Access Token"
+message="Personal Access Token (full access, incl. project creation)"
 set_env PAT \
-    "$message of a user that is allowed to create a project - see $doc_url"
+    "$message - see $doc_url"
+
+set_env DEFAULT_POOL \
+    "Pipeline Agent Pool for general jobs" \
+    "$DEVOPS_DEFAULT_POOL"
 
 set_env VPN_POOL \
-    "Enter the name of the Agent Pool to use for Deploy tasks" \
+    "Pipeline Agent Pool for deployment jobs" \
     "$DEVOPS_VPN_POOL"
 
 set_env DOCKER_REGISTRY \
-    "Enter the host name of the Docker Registry" \
+    "Docker Registry" \
     "$DEVOPS_DOCKER_REGISTRY"
 
 set_env SYSTEM_COLLECTIONURI \
-    "Enter the DevOps Organisation name" \
+    "DevOps Organisation" \
     "$DEVOPS_ORGANISATION"
 
 # Read altered values from file.
@@ -77,8 +116,8 @@ source /devops/env_file
 # Login to the Azure DevOps CLI.
 export AZURE_DEVOPS_EXT_PAT=$PAT
 
-# Replace string to insert the \"\$PAT@\" value between the (https):// and
-# the host name in the URI (e.g. https://dev.azure.com/merkatordev/).
+# Replace string to insert the \"\$PAT@\" value between the (https):// and the
+# host name in the URI (e.g. https://dev.azure.com/merkatordev/).
 AUTHORISED_COLLECTION_URI=${SYSTEM_COLLECTIONURI/'://'/'://'$PAT@}
 export AUTHORISED_COLLECTION_URI
 
@@ -131,11 +170,13 @@ else
     # 2>/dev/null to prevent printing of harmless ERROR: VS800075: The project
     # with id 'vstfs:///Classification/TeamProject/f5e...87' does not exist, or
     # you do not have permission to access it.
-    response=$(az devops project create --name "$SYSTEM_TEAMPROJECT" 2>/dev/null)
+    response=$(az devops project create --name "$SYSTEM_TEAMPROJECT" \
+        2>/dev/null)
     # Make DevOps realise the new project exists.
     sleep 5
-    default_repository_id_to_delete=$(az repos show --repository "$SYSTEM_TEAMPROJECT" \
-        --query id --output tsv) &&
+    default_repository_id_to_delete=$(
+        az repos show --repository "$SYSTEM_TEAMPROJECT" --query id --output tsv
+    ) &&
         get_project_id
 fi || exit
 
@@ -165,7 +206,7 @@ project_administrators_group=$(
     ) &&
     [ "$is_member" = true ] || exit
 
-policy_exemt() {
+policy_exempt() {
     local allow_deny=$1
 
     # This value was set in the group membership check above.
@@ -277,12 +318,13 @@ components=("${components[@],,}")
 log Components: "${components[@]}"
 
 # Temporarily allow "Bypass policies when pushing" for "Project Administrators".
-policy_exemt allow || exit
+policy_exempt allow || exit
 
 # Create the repositories, components, and pipelines.
 for component_repository in "${components[@]}"; do
 
-    # Split component_repository into component and repository, using = as the separator.
+    # Split component_repository into component and repository, using = as the
+    # separator.
     IFS='=' read -r COMPONENT REPOSITORY <<<"$component_repository"
     # shellcheck disable=SC2269
     {
@@ -319,13 +361,13 @@ done
 
 # Undo temporarily allow "Bypass policies when pushing" for "Project
 # Administrators".
-policy_exemt deny || exit
+policy_exempt deny || exit
 
 # Exit if any repository creation failed - but only after undoing the policy
 # change.
 [ "$repository_result" = 0 ] || {
     log "Error: non-zero repository_result: $repository_result"
-    exit
+    exit "$repository_result"
 }
 
 # ------------------------------------------------------------------------------
@@ -380,30 +422,124 @@ project_build_service_identity=$(/devops/rest.sh vssps GET identities \
         "$project_build_service_descriptor" allow \
         GenericRead GenericContribute CreateTag PolicyExempt || exit
 
-# Try to create the VPN Agent Pool if it doesn't exist in the project.
-queueNames=$(node --print "encodeURIComponent('$VPN_POOL')") &&
-    queues=$(/devops/rest.sh project GET distributedtask/queues \
-        "queueNames=$queueNames") &&
-    if [ "$(node --print "($queues).count")" -gt 0 ]; then
-        log Agent Pool "$VPN_POOL" exists in project
-    else
-        query="[?name=='$VPN_POOL'].id"
-        if pool_id=$(az pipelines pool list --output tsv --query "$query"); then
-            if response=$(/devops/rest.sh project POST distributedtask/queues \
-                authorizePipelines=true "{
-                    \"name\": \"$VPN_POOL\",
-                    \"pool\": {
-                        \"id\": $pool_id
-                    }
-                }"); then
-                log Agent Pool "$VPN_POOL" added to project
-            else
-                log Failed to add Agent Pool "$VPN_POOL" to project
-            fi
+# Try to create the Agent Pool if it doesn't exist in the project.
+create_pool() {
+    local pool_name=$1
+    local queueNames
+    queueNames=$(node --print "encodeURIComponent('$pool_name')") &&
+        local queues &&
+        queues=$(/devops/rest.sh project GET distributedtask/queues \
+            "queueNames=$queueNames") &&
+        if [ "$(node --print "($queues).count")" -gt 0 ]; then
+            log Agent Pool "$pool_name" exists in project
         else
-            log Pool "$VPN_POOL" not found
+            local query="[?name=='$pool_name'].id"
+            local pool_id
+            if pool_id=$(az pipelines pool list --output tsv --query "$query"); then
+                local response
+                if response=$(/devops/rest.sh project POST \
+                    distributedtask/queues authorizePipelines=true "{
+                        \"name\": \"$pool_name\",
+                        \"pool\": {
+                            \"id\": $pool_id
+                        }
+                    }"); then
+                    log Agent Pool "$pool_name" added to project
+                else
+                    log Error: failed to add Agent Pool "$pool_name" to project
+                    return 1
+                fi
+            else
+                log Error: pool "$pool_name" not found
+                return 1
+            fi
         fi
+
+    permit_pool "$pool_name" "$pool_id"
+}
+
+# Grant permission for the project to use the specified agent pool.
+permit_pool() {
+    local pool_name=$1
+    local pool_id=$2
+
+    log "Grant permission to use Agent Pool $pool_name"
+
+    # Get the queue ID from the project's queues
+    local queueNames
+    queueNames=$(node --print "encodeURIComponent('$pool_name')")
+    local queues
+    queues=$(/devops/rest.sh project GET distributedtask/queues \
+        "queueNames=$queueNames")
+
+    local queue_count
+    queue_count=$(node --print "($queues).count" 2>/dev/null)
+
+    if [ "$queue_count" != "1" ]; then
+        log "Error: Expected 1 queue for pool '$pool_name', found $queue_count"
+        return 1
     fi
+
+    local queue_id
+    queue_id=$(node --print "($queues).value[0].id" 2>/dev/null)
+
+    if [ -z "$queue_id" ]; then
+        log "Error: Could not get queue ID for pool '$pool_name'"
+        return 1
+    fi
+
+    # Get all pipelines that need permission to use this pool
+    local pipelines
+    pipelines=$(az pipelines list --query "[].{id:id}" --output json 2>/dev/null) || {
+        log "Error: Could not get pipelines list, skipping agent pool permission grant"
+        return 1
+    }
+
+    if [ -z "$pipelines" ] || [ "$pipelines" = "[]" ]; then
+        log "No pipelines found, skipping agent pool permission grant"
+        return 0
+    fi
+
+    # Create the pipeline permissions payload that matches the web UI request
+    local pipeline_permissions
+    pipeline_permissions=$(node --print "
+        try {
+            const pipelines = $pipelines;
+            const permissions = {
+                pipelines: pipelines.map(p => ({
+                    id: p.id,
+                    authorized: true
+                }))
+            };
+            JSON.stringify(permissions);
+        } catch (e) {
+            console.log('{}');
+        }
+    " 2>/dev/null)
+
+    if [ -z "$pipeline_permissions" ] || [ "$pipeline_permissions" = "{}" ]; then
+        log "Error: Could not format pipeline permissions"
+        return 1
+    fi
+
+    local response
+    if response=$(/devops/rest.sh project PATCH \
+        "pipelines/pipelinePermissions/queue/$queue_id" '' \
+        "$pipeline_permissions"); then
+        return 0
+    else
+        log "Error: Failed to grant pipeline permissions for Agent Pool '$pool_name'"
+        echo "- API Response: $response"
+        echo "- Queue ID: $queue_id"
+        echo "- Pipeline Permissions JSON: $pipeline_permissions"
+        return 1
+    fi
+}
+
+# Create agent pools and grant permissions (after all pipelines have been
+# created)
+create_pool "$DEFAULT_POOL" || exit
+create_pool "$VPN_POOL" || exit
 
 # We use `response=$(...)` to prevent the resonse from being echoed to the
 # console.

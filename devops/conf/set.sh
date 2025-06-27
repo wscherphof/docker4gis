@@ -7,7 +7,7 @@ ENV_FILE=${ENV_FILE:?ENV_FILE value is required}
 
 # Lowercase name.
 case ${name,,} in
-t | pat)
+p | pat)
     name=PAT
     ;;
 r | registry | docker_registry)
@@ -29,8 +29,11 @@ o | organisation | organization | system_collectionuri)
         value+=/
     fi
     ;;
-p | pool | vpn_pool)
+v | vpn | vpn_pool)
     name=VPN_POOL
+    ;;
+d | default | default_pool)
+    name=DEFAULT_POOL
     ;;
 *)
     echo "Unknown name: $name"
@@ -51,6 +54,7 @@ for name in \
     PAT \
     DOCKER_REGISTRY \
     SYSTEM_COLLECTIONURI \
+    DEFAULT_POOL \
     VPN_POOL; do
     value=${!name}
     echo "export $name='$value'" >>"$ENV_FILE"
