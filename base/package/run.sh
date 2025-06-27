@@ -6,13 +6,11 @@ echo "export DOCKER_REGISTRY=$DOCKER_REGISTRY"
 echo '
 tag=${tag:?Please pass a specific tag}
 
-export DOCKER_BINDS_DIR=$DOCKER_BINDS_DIR
-if [ ! "$DOCKER_BINDS_DIR" ]; then
-	base_dir=~
-	[ -n "$PIPELINE" ] && base_dir=.
-	DOCKER_BINDS_DIR=$(realpath "$base_dir")/docker-binds
-	export DOCKER_BINDS_DIR
-fi
+base_dir=~
+[ -n "$PIPELINE" ] && base_dir=..
+DOCKER_BINDS_DIR=${DOCKER_BINDS_DIR:-$base_dir/docker-binds}
+DOCKER_BINDS_DIR=$(realpath "$DOCKER_BINDS_DIR")
+export DOCKER_BINDS_DIR
 
 log=$(realpath "$DOCKER_USER".log)
 
