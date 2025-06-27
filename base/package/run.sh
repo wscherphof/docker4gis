@@ -8,7 +8,9 @@ tag=${tag:?Please pass a specific tag}
 
 export DOCKER_BINDS_DIR=$DOCKER_BINDS_DIR
 if [ ! "$DOCKER_BINDS_DIR" ]; then
-	DOCKER_BINDS_DIR=$(realpath ~)/docker-binds
+	base_dir=~
+	[ -n "$PIPELINE" ] && base_dir=.
+	DOCKER_BINDS_DIR=$(realpath "$base_dir")/docker-binds
 	export DOCKER_BINDS_DIR
 fi
 
