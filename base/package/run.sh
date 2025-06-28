@@ -7,7 +7,7 @@ echo '
 tag=${tag:?Please pass a specific tag}
 
 base_dir=~
-[ -n "$PIPELINE" ] && base_dir=..
+[ -n "$PIPELINE" ] && base_dir=
 DOCKER_BINDS_DIR=${DOCKER_BINDS_DIR:-$base_dir/docker-binds}
 DOCKER_BINDS_DIR=$(realpath "$DOCKER_BINDS_DIR")
 export DOCKER_BINDS_DIR
