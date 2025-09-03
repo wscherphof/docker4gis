@@ -36,7 +36,8 @@ if [ "$(basename "$dg_dir")" = '.bin' ]; then
     INSTALLED=true
     dg_dir="$dg_dir"/../$docker4gis
 fi
-dg_dir=$(realpath "$dg_dir")
+# Don't use realpath here, to prevent resolving symlinks.
+# dg_dir=$(realpath "$dg_dir")
 
 # Set the DOCKER_BASE variable (leading to main.sh, amongst others).
 DOCKER_BASE="$dg_dir"/base
