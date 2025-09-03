@@ -84,7 +84,8 @@ else
             npm install
     )
 fi &&
-    node_modules=$(realpath "$node_modules") &&
+    # Don't use realpath here, to prevent resolving symlinks.
+    # node_modules=$(realpath "$node_modules") &&
     [ -d "$node_modules" ] &&
     [ "$(basename "$node_modules")" = node_modules ]; then
     # Export the paths to npm dependencies.
