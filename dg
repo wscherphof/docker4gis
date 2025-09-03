@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+if [ "$1" = dg_version ]; then
+  echo {{VERSION}}
+  exit
+fi
+
+package_name=docker4gis
+
+# Step 1: Get the latest version number from the npm registry (fast).
+npm_version=$(npm view "$package_name" version)
+
+# Step 2: Find the most recently cached version in ~/.npm/_npx.
+package_json=$(find ~/.npm/_npx/ -type f -path "*/node_modules/$package_name/package.json" -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -n1)
+[ -f "$package_json" ] &&
+  local_version=$(node -p "require('$package_json').version")
+
+# Step 3: Compare versions and run the correct one.
+if [ "$npm_version" == "$local_version" ]; then
+  # echo "✅ Using local $package_name@$local_version"
+  root_dir=${package_json%/node_modules/*}
+  executable=$root_dir/node_modules/.bin/$package_name
+  if [ -x "$executable" ]; then
+    DOCKER4GIS_COMMAND=$(basename "$0") "$executable" "$@"
+  else
+    echo "⚠️  Binary not found at $executable. Falling back to npx..."
+    npx --yes "$package_name" "$@"
+  fi
+else
+  echo "⬇️  Installing and running latest $package_name@$npm_version via npx"
+  npx --yes "$package_name" "$@"
+fi
