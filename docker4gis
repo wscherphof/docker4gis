@@ -36,8 +36,10 @@ if [ "$(basename "$dg_dir")" = '.bin' ]; then
     INSTALLED=true
     dg_dir="$dg_dir"/../$docker4gis
 fi
-# Don't use realpath here, to prevent resolving symlinks.
-# dg_dir=$(realpath "$dg_dir")
+dg_dir=$(realpath "$dg_dir")
+
+# Set the DOCKER_BASE variable (leading to main.sh, amongst others).
+DOCKER_BASE="$dg_dir"/base
 
 version() {
     local local=$1
@@ -69,9 +71,6 @@ if [ -z "$skip_dg" ]; then
     # Replace the '{{VERSION}}' placeholder with the $version value.
     sed -i "s/{{VERSION}}/$version/g" "$dg"
 fi
-
-# Set the DOCKER_BASE variable (leading to main.sh, amongst others).
-DOCKER_BASE="$dg_dir"/base
 
 # Facilitate running npm dependencies.
 if if [ "$INSTALLED" ]; then
