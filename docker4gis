@@ -36,64 +36,36 @@ if [ "$(basename "$dg_dir")" = '.bin' ]; then
     INSTALLED=true
     dg_dir="$dg_dir"/../$docker4gis
 fi
-# Don't use realpath here, to prevent resolving symlinks.
-# dg_dir=$(realpath "$dg_dir")
+dg_dir=$(realpath "$dg_dir")
 
-# Set the DOCKER_BASE variable (leading to main.sh, amongst others).
-DOCKER_BASE="$dg_dir"/base
-
-version() {
-    local local=$1
-    local actual=$1
-    if [ "$local" = local ]; then
-        dotenv &&
-            echo "$DOCKER4GIS_VERSION"
-    elif [ "$actual" = actual ] || [ "$INSTALLED" ] || [ "$DOCKER4GIS_DEVOPS" ]; then
-        node --print "require('$DOCKER_BASE/../package.json').version"
-    else
-        echo "$version_development"
-    fi
-}
-
-dg=$HOME/.local/bin/dg
-version=$(version)
-# Skip dg installation if existing version is newer.
-[ "$version" != "$version_development" ] &&
-    [ -x "$dg" ] &&
-    dg_version=$("$dg" dg_version) &&
-    [ -n "$dg_version" ] &&
-    [ "$dg_version" != "$version_development" ] &&
-    # Keep only the characters after the last '.' (twice).
-    [ "${dg_version##*.}" -gt "${version##*.}" ] &&
-    skip_dg=true
 # Install the `dg` start script.
-if [ -z "$skip_dg" ]; then
-    install -Dm755 "$dg_dir/dg" "$dg"
-    # Replace the '{{VERSION}}' placeholder with the $version value.
-    sed -i "s/{{VERSION}}/$version/g" "$dg"
-fi
+install -Dm755 "$dg_dir/dg" "$HOME/.local/bin/dg"
 
 # Facilitate running npm dependencies.
-if if [ "$INSTALLED" ]; then
-    node_modules=$dg_dir/..
-else
-    node_modules=$dg_dir/node_modules
-    # Install the git clone if it wasn't already.
-    [ -d "$node_modules" ] || (
-        cd "$dg_dir" &&
-            npm install
-    )
-fi &&
-    # Don't use realpath here, to prevent resolving symlinks.
-    # node_modules=$(realpath "$node_modules") &&
-    [ -d "$node_modules" ] &&
-    [ "$(basename "$node_modules")" = node_modules ]; then
+if
+    if [ "$INSTALLED" ]; then
+        node_modules=$dg_dir/..
+    else
+        node_modules=$dg_dir/node_modules
+        # Install the git clone if it wasn't already.
+        [ -d "$node_modules" ] || (
+            cd "$dg_dir" &&
+                npm install
+        )
+    fi &&
+        node_modules=$(realpath "$node_modules") &&
+        [ -d "$node_modules" ] &&
+        [ "$(basename "$node_modules")" = node_modules ]
+then
     # Export the paths to npm dependencies.
     export BATS=$node_modules/.bin/bats
 else
     echo "node_modules directory not found - $node_modules" >&2
     exit 1
 fi
+
+# Set the DOCKER_BASE variable (leading to main.sh, amongst others).
+DOCKER_BASE="$dg_dir"/base
 
 export PIPELINE=${PIPELINE:-$TF_BUILD}
 export PIPELINE_DOCKER_REPO=${PIPELINE_DOCKER_REPO:-$BUILD_REPOSITORY_NAME}
@@ -436,6 +408,19 @@ rename_replace() {
         file=$(realpath "$file")
         mv "$file" "$(dirname "$file")/$new_value"
     done < <(find_no_git . -name "$old_value" -print0)
+}
+
+version() {
+    local local=$1
+    local actual=$1
+    if [ "$local" = local ]; then
+        dotenv &&
+            echo "$DOCKER4GIS_VERSION"
+    elif [ "$actual" = actual ] || [ "$INSTALLED" ] || [ "$DOCKER4GIS_DEVOPS" ]; then
+        node --print "require('$DOCKER_BASE/../package.json').version"
+    else
+        echo "$version_development"
+    fi
 }
 
 case "$action" in
