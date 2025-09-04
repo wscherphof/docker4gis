@@ -4,9 +4,7 @@ DOCKER_BASE=$(realpath "$(dirname "$0")")
 export DOCKER_BASE
 
 base_dir=~
-# FIXME: on pipeline:
-# - mkdir: cannot create directory ‘/docker-binds’: Permission denied
-[ -n "$PIPELINE" ] && base_dir=
+[ -n "$PIPELINE" ] && base_dir=..
 DOCKER_BINDS_DIR=${DOCKER_BINDS_DIR:-$base_dir/docker-binds}
 DOCKER_BINDS_DIR=$(realpath "$DOCKER_BINDS_DIR")
 mkdir -p "$DOCKER_BINDS_DIR"
