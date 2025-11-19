@@ -23,24 +23,6 @@ HOMEDEST=$HOMEDEST
 
 mkdir -p "$DOCKER_BINDS_DIR"/certificates
 
-getip() {
-	if result=$(getent ahostsv4 "$1" 2>/dev/null); then
-		echo "$result" | awk '{ print $1 ; exit }'
-	elif result=$(ping -4 -n 1 "$1" 2>/dev/null); then
-		echo "$result" | grep "$1" | sed 's~.*\[\(.*\)\].*~\1~'
-		# Pinging wouter [10.0.75.1] with 32 bytes of data:
-	elif result=$(ping -c 1 "${1}" 2>/dev/null); then
-		echo "$result" | grep PING | grep -o -E '\d+\.\d+\.\d+\.\d+'
-		# PING macbook-pro-van-wouter.local (188.166.80.233): 56 data bytes
-	else
-		echo '127.0.0.1'
-	fi
-}
-
-urlhost() {
-	echo "$1" | sed 's~.*//\([^:/]*\).*~\1~'
-}
-
 network=$CONTAINER
 docker4gis/network.sh "$network"
 
@@ -66,7 +48,7 @@ docker container run --restart "$RESTART" --name "$CONTAINER" \
 	-p "$PROXY_PORT_HTTP":80 \
 	--network "$network" \
 	--ip "$IP" \
-	--add-host="$(hostname)":"$(getip "$(hostname)")" \
+	--add-host host.docker.internal=host-gateway \
 	-d "$IMAGE" proxy "$@"
 
 for network in $(docker container exec "$CONTAINER" ls /config); do
