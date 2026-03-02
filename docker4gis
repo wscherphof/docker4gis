@@ -39,7 +39,17 @@ fi
 dg_dir=$(realpath "$dg_dir")
 
 # Install the `dg` start script.
-install -Dm755 "$dg_dir/dg" "$HOME/.local/bin/dg"
+local_bin="$HOME/.local/bin"
+mkdir -p "$local_bin"
+install -Dm755 "$dg_dir/dg" "$local_bin/dg"
+which -s dg || {
+    echo "
+export PATH=\$PATH:$local_bin" >>~/.bashrc
+    echo "Added $local_bin to PATH in ~/.bashrc." >&2
+    echo "Please restart your terminal" \
+        "or run 'source ~/.bashrc' to use the 'dg' command." >&2
+    exit 1
+}
 
 # Facilitate running npm dependencies.
 if

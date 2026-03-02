@@ -17,12 +17,12 @@ In a Bash terminal on a Linux machine (Windows Subsystem for Linux (WSL) is
 fine), run:
 
 ```
-npx --yes docker4gis@latest alias
+npx docker4gis
 ```
 
-This will create an [alias](<https://en.wikipedia.org/wiki/Alias_(command)>) that
-lets you invoke `npx --yes docker4gis@latest` with a short name; the default is
-`dg`.
+This will install a command `dg` in `~/.local.bin` that you will use to run
+docker4gis actions. It does nothing more than passing any parameters to the
+command `npx --yes docker4gis@latest`.
 
 ## Setup new project
 
