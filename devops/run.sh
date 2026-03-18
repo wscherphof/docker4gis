@@ -154,3 +154,5 @@ if [ -n "${DEVOPS_REPOS:-}" ]; then
 		fi
 	done
 fi
+
+echo "• All done"
