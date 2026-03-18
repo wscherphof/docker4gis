@@ -153,6 +153,10 @@ git config --global user.name 'Azure Pipeline'
 # the console.
 git config --global init.defaultBranch main
 
+# Allow git to operate in directories owned by a different user. The /project
+# mount point is owned by the host user, not root (the container user).
+git config --global --add safe.directory '*'
+
 get_project_id() {
     SYSTEM_TEAMPROJECTID=$(az devops project show \
         --project "$SYSTEM_TEAMPROJECT" \
