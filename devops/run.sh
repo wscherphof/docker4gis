@@ -142,9 +142,9 @@ if [ -n "${DEVOPS_REPOS:-}" ]; then
 	for repo in $DEVOPS_REPOS; do
 		target=$PROJECT_DIR/$repo
 		if [ -d "$target" ]; then
-			echo "• Local clone of $repo already exists"
+			echo "•  Local clone of $repo already exists"
 		else
-			echo "• Clone $repo locally"
+			echo "•  Clone $repo locally"
 			git clone "${AUTHORISED_COLLECTION_URI}${DEVOPS_PROJECT}/_git/${repo}" \
 				"$target" &&
 				# Remove the PAT from the stored remote URL.
@@ -155,4 +155,4 @@ if [ -n "${DEVOPS_REPOS:-}" ]; then
 	done
 fi
 
-echo "• All done"
+echo "•  All done"
