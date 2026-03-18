@@ -127,24 +127,15 @@ docker container run --name "$CONTAINER" \
 	--env ENV_FILE="$container_env_file" \
 	--mount type=bind,source="$ENV_FILE",target="$container_env_file" \
 	--mount type=bind,source="$docker_socket",target="$docker_socket" \
+	--mount type=bind,source="$PROJECT_DIR",target=/project \
 	"$DOCKER_IMAGE" "$@" || exit
 
-# Source the env_file to pick up DEVOPS_PROJECT and DEVOPS_REPOS that the
-# container wrote at the end of the components run.
+# Source the env_file to pick up DEVOPS_NEWLY_CLONED written by the container.
 # shellcheck source=/dev/null
 source "$ENV_FILE"
 
-# Clone any missing repos locally, as the host user, into the project directory.
-if [ -n "${DEVOPS_REPOS:-}" ]; then
-	AUTHORISED_COLLECTION_URI=${SYSTEM_COLLECTIONURI/'://'/'://'$PAT@}
-	for repo in $DEVOPS_REPOS; do
-		if [ -d "$PROJECT_DIR/$repo" ]; then
-			echo "• Local clone of $repo already exists"
-		else
-			echo "• Clone $repo locally"
-			git clone "${AUTHORISED_COLLECTION_URI}${DEVOPS_PROJECT}/_git/${repo}" \
-				"$PROJECT_DIR/$repo" ||
-				echo "Warning: failed to clone $repo"
-		fi
-	done
-fi
+# The container runs as root, so cloned directories are root-owned on the host.
+# Fix ownership back to the current user.
+for repo in ${DEVOPS_NEWLY_CLONED:-}; do
+	sudo chown -R "$USER" "$PROJECT_DIR/$repo"
+done

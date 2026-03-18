@@ -545,12 +545,27 @@ create_pool "$VPN_POOL" || exit
 # console.
 response=${response:-}
 
-# Save the repo list and project name to the env_file so that run.sh can
-# clone them locally on the host after the container exits.
-repos=$(az repos list --query "[].name" --output tsv | tr '\n' ' ') || repos=
-{
-    echo "DEVOPS_PROJECT=$SYSTEM_TEAMPROJECT"
-    echo "DEVOPS_REPOS=$repos"
-} >>"$ENV_FILE"
+# Clone all repos from the remote project into the local project directory
+# (mounted at /project from the host).
+if [ -d /project ]; then
+    log "Clone repos locally"
+    repos=$(az repos list --query "[].name" --output tsv) || repos=
+    newly_cloned=
+    for repo in $repos; do
+        if [ -d "/project/$repo" ]; then
+            log "Local clone of $repo already exists"
+        else
+            log "Clone $repo locally"
+            if (cd /project && REPOSITORY=$repo /devops/git_origin.sh clone); then
+                newly_cloned="$newly_cloned $repo"
+            else
+                log "Warning: failed to clone $repo locally"
+            fi
+        fi
+    done
+    # Write the list of newly cloned repos to the env_file so that run.sh can
+    # fix ownership (the container runs as root, so cloned files are root-owned).
+    echo "DEVOPS_NEWLY_CLONED='${newly_cloned# }'" >>"$ENV_FILE"
+fi
 
 log OK
