@@ -43,6 +43,7 @@ out=/dev/stdout
 [ -z "$DEBUG" ] && out=/dev/null
 err=/dev/stderr
 [ -z "$DEBUG" ] && err=$(mktemp)
+echo "Building Docker image $DOCKER_IMAGE..."
 docker image build -t "$DOCKER_IMAGE" "$(dirname "$0")" >"$out" 2>"$err" || failed=true
 [ -f "$err" ] && rm "$err"
 [ -z "$failed" ] || exit 1
