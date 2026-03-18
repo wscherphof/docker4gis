@@ -102,8 +102,7 @@ find_project_dir() {
 }
 
 find_project_dir
-PROJECT_DIR_UID=$(stat -c "%u" "$PROJECT_DIR")
-PROJECT_DIR_GID=$(stat -c "%g" "$PROJECT_DIR")
+PROJECT_DIR=$(realpath "$PROJECT_DIR")
 
 docker_socket=/var/run/docker.sock
 container_env_file=/devops/env_file
@@ -126,9 +125,26 @@ docker container run --name "$CONTAINER" \
 	--env DEVOPS_DEFAULT_POOL="$DEVOPS_DEFAULT_POOL" \
 	--env DEVOPS_VPN_POOL="$DEVOPS_VPN_POOL" \
 	--env ENV_FILE="$container_env_file" \
-	--env PROJECT_DIR_UID="$PROJECT_DIR_UID" \
-	--env PROJECT_DIR_GID="$PROJECT_DIR_GID" \
 	--mount type=bind,source="$ENV_FILE",target="$container_env_file" \
 	--mount type=bind,source="$docker_socket",target="$docker_socket" \
-	--mount type=bind,source="$PROJECT_DIR",target=/project \
-	"$DOCKER_IMAGE" "$@"
+	"$DOCKER_IMAGE" "$@" || exit
+
+# Source the env_file to pick up DEVOPS_PROJECT and DEVOPS_REPOS that the
+# container wrote at the end of the components run.
+# shellcheck source=/dev/null
+source "$ENV_FILE"
+
+# Clone any missing repos locally, as the host user, into the project directory.
+if [ -n "${DEVOPS_REPOS:-}" ]; then
+	AUTHORISED_COLLECTION_URI=${SYSTEM_COLLECTIONURI/'://'/'://'$PAT@}
+	for repo in $DEVOPS_REPOS; do
+		if [ -d "$PROJECT_DIR/$repo" ]; then
+			echo "• Local clone of $repo already exists"
+		else
+			echo "• Clone $repo locally"
+			git clone "${AUTHORISED_COLLECTION_URI}${DEVOPS_PROJECT}/_git/${repo}" \
+				"$PROJECT_DIR/$repo" ||
+				echo "Warning: failed to clone $repo"
+		fi
+	done
+fi

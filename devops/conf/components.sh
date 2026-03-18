@@ -153,10 +153,6 @@ git config --global user.name 'Azure Pipeline'
 # the console.
 git config --global init.defaultBranch main
 
-# Allow git to operate in directories owned by a different user. The /project
-# mount point is owned by the host user, not root (the container user).
-git config --global --add safe.directory '*'
-
 get_project_id() {
     SYSTEM_TEAMPROJECTID=$(az devops project show \
         --project "$SYSTEM_TEAMPROJECT" \
@@ -549,29 +545,12 @@ create_pool "$VPN_POOL" || exit
 # console.
 response=${response:-}
 
-# Clone all repos from the remote project into the local project directory
-# (mounted at /project from the host).
-if [ -d /project ]; then
-    log "Clone repos locally"
-    repos=$(az repos list --query "[].name" --output tsv) || repos=
-    newly_cloned=()
-    for repo in $repos; do
-        if [ -d "/project/$repo" ]; then
-            log "Local clone of $repo already exists"
-        else
-            log "Clone $repo locally"
-            if (cd /project && REPOSITORY=$repo /devops/git_origin.sh clone); then
-                newly_cloned+=("$repo")
-            else
-                log "Warning: failed to clone $repo locally"
-            fi
-        fi
-    done
-    if [ -n "${PROJECT_DIR_UID:-}" ] && [ -n "${PROJECT_DIR_GID:-}" ]; then
-        for repo in "${newly_cloned[@]}"; do
-            chown -R "$PROJECT_DIR_UID:$PROJECT_DIR_GID" "/project/$repo"
-        done
-    fi
-fi
+# Save the repo list and project name to the env_file so that run.sh can
+# clone them locally on the host after the container exits.
+repos=$(az repos list --query "[].name" --output tsv | tr '\n' ' ') || repos=
+{
+    echo "DEVOPS_PROJECT=$SYSTEM_TEAMPROJECT"
+    echo "DEVOPS_REPOS=$repos"
+} >>"$ENV_FILE"
 
 log OK
