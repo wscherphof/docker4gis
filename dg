@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-npx --yes docker4gis@latest "$@"
+DOCKER4GIS_COMMAND=dg npx --yes docker4gis@latest "$@"
