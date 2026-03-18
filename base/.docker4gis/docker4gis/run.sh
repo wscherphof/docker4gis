@@ -16,7 +16,9 @@ export DOCKER_BINDS_DIR
 
 export DOCKER_ENV=${DOCKER_ENV:-DEVELOPMENT}
 
-[ "$DOCKER_ENV" = DEVELOPMENT ] &&
+[ "$DOCKER_REPO" = postgis-ddl ] &&
+    RESTART=no ||
+    [ "$DOCKER_ENV" = DEVELOPMENT ] &&
     RESTART=no ||
     RESTART=always
 export RESTART
@@ -41,9 +43,11 @@ docker container rm "$container" >/dev/null
 
 if old_image=$(docker container inspect --format='{{ .Config.Image }}' "$DOCKER_CONTAINER" 2>/dev/null); then
     if [ "$old_image" = "$DOCKER_IMAGE" ]; then
-        docker container start "$DOCKER_CONTAINER" &&
-            exit 0 || # Existing container from same image is started, and we're done.
-            echo "The existing container failed to start; we'll remove it, and create a new one..."
+        if [ "$DOCKER_REPO" != postgis-ddl ]; then
+            docker container start "$DOCKER_CONTAINER" &&
+                exit 0 || # Existing container from same image is started, and we're done.
+                echo "The existing container failed to start; we'll remove it, and create a new one..."
+        fi
     fi
     docker container stop "$DOCKER_CONTAINER" >/dev/null || exit $?
     docker container rm "$DOCKER_CONTAINER" >/dev/null || exit $?

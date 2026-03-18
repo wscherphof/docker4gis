@@ -47,8 +47,9 @@ for dotenv in ../*/.env; do
         # shellcheck source=/dev/null
         . "$dotenv"
 
-        # Skip standalone components.
-        [ -z "$DOCKER4GIS_STANDALONE" ] || exit
+        # Skip standalone components, except postgis-ddl which must run as a
+        # one-off migration step during package startup.
+        [ -z "$DOCKER4GIS_STANDALONE" ] || [ "$DOCKER_REPO" = postgis-ddl ] || exit
 
         [ "$DOCKER_USER" ] || DOCKER_USER=$(basename "$(realpath "$(dirname "$dotenv")/..")")
         [ "$DOCKER_REPO" ] || DOCKER_REPO=$(basename "$(realpath "$(dirname "$dotenv")")")
@@ -174,15 +175,34 @@ last_repo() {
     pick_repo proxy cron
 }
 
+add_postgis_ddl() {
+    [ "$repo" = postgis ] || return 0
+
+    ddl_repo=postgis-ddl
+    ddl_repo_file=$components/$ddl_repo
+    [ -f "$ddl_repo_file" ] ||
+        error "component '$ddl_repo' is required when 'postgis' is present; add a sibling $ddl_repo repository and run it with this package"
+
+    repo=$ddl_repo
+    version=$(cat "$ddl_repo_file")
+    add_repo
+    postgis_ddl_added=true
+}
+
 # Loop through all components and add those that should go first.
 for repo_file in "$components"/*; do
-    first_repo && add_repo
+    if first_repo; then
+        add_repo
+        add_postgis_ddl
+    fi
 done
 
 # Loop through all components again and add those that should not go first or
 # last.
 for repo_file in "$components"/*; do
-    first_repo || last_repo || add_repo
+    first_repo || last_repo ||
+        ([ "$repo" = postgis-ddl ] && [ -n "$postgis_ddl_added" ]) ||
+        add_repo
 done
 
 # Loop through all components again and add those that should go last.
