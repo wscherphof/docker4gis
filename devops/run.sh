@@ -71,6 +71,39 @@ find_docker_user() {
 [ -n "$DOCKER_USER" ] ||
 	find_docker_user
 
+# Find the local project directory to mount into the container for cloning repos.
+# Walk up from the current directory looking for a .env file with
+# DOCKER4GIS_VERSION, which means we're inside a component clone - the project
+# directory is its parent. If not found walking up, look downward for component
+# subdirectories (we're already in the project directory). Fall back to the
+# current directory.
+find_project_dir() {
+	local dir
+	dir=$(realpath .)
+	while [ "$dir" != "/" ]; do
+		if [ -f "$dir/.env" ] && grep -q "^DOCKER4GIS_VERSION=" "$dir/.env" 2>/dev/null; then
+			PROJECT_DIR=$(dirname "$dir")
+			return
+		fi
+		dir=$(dirname "$dir")
+	done
+	local env_file
+	env_file=$(
+		find "$(realpath .)" -maxdepth 2 -name ".env" -type f -print | sort |
+			while IFS= read -r f; do
+				grep -q "^DOCKER4GIS_VERSION=" "$f" 2>/dev/null && echo "$f" && break
+			done
+	)
+	if [ -n "$env_file" ]; then
+		PROJECT_DIR=$(dirname "$(dirname "$env_file")")
+	else
+		PROJECT_DIR=$(realpath .)
+	fi
+}
+
+find_project_dir
+PROJECT_DIR=$(realpath "$PROJECT_DIR")
+
 docker_socket=/var/run/docker.sock
 container_env_file=/devops/env_file
 
@@ -94,4 +127,32 @@ docker container run --name "$CONTAINER" \
 	--env ENV_FILE="$container_env_file" \
 	--mount type=bind,source="$ENV_FILE",target="$container_env_file" \
 	--mount type=bind,source="$docker_socket",target="$docker_socket" \
-	"$DOCKER_IMAGE" "$@"
+	"$DOCKER_IMAGE" "$@" || exit
+
+# Source the env_file to pick up DEVOPS_PROJECT and DEVOPS_REPOS written by
+# the container.
+# shellcheck source=/dev/null
+source "$ENV_FILE"
+
+# Clone any missing repos locally as the host user, into the project directory.
+# Running git locally avoids the ownership and safe.directory issues that arise
+# from cloning inside a root-running container.
+if [ -n "${DEVOPS_REPOS:-}" ]; then
+	AUTHORISED_COLLECTION_URI=${SYSTEM_COLLECTIONURI/'://'/'://'$PAT@}
+	for repo in $DEVOPS_REPOS; do
+		target=$PROJECT_DIR/$repo
+		if [ -d "$target" ]; then
+			echo "•  Local clone of $repo already exists"
+		else
+			echo "•  Clone $repo locally"
+			git clone "${AUTHORISED_COLLECTION_URI}${DEVOPS_PROJECT}/_git/${repo}" \
+				"$target" &&
+				# Remove the PAT from the stored remote URL.
+				git -C "$target" remote set-url origin \
+					"${SYSTEM_COLLECTIONURI}${DEVOPS_PROJECT}/_git/${repo}" ||
+				echo "Warning: failed to clone $repo"
+		fi
+	done
+fi
+
+echo "•  All done"
