@@ -42,7 +42,7 @@ dg_dir=$(realpath "$dg_dir")
 local_bin="$HOME/.local/bin"
 mkdir -p "$local_bin"
 install -Dm755 "$dg_dir/dg" "$local_bin/dg"
-which -s dg || {
+command -v dg >/dev/null 2>&1 || {
     echo "
 export PATH=\$PATH:$local_bin" >>~/.bashrc
     echo "Added $local_bin to PATH in ~/.bashrc." >&2
@@ -653,6 +653,7 @@ ENV DOCKER_REPO=\$DOCKER_REPO
 
     [ "$action" = template ] || [ "$component" = n ] && {
         write_dotenv
+        [ "$component" = postgis-ddl ] && echo "DOCKER4GIS_STANDALONE=true" >>.env
         replace_component
         # And we're done!
         finish
@@ -665,6 +666,7 @@ ENV DOCKER_REPO=\$DOCKER_REPO
     DOCKER4GIS_VERSION=$(docker container run --rm "$image" \
         cat /.docker4gis/docker4gis/VERSION)
     write_dotenv
+    [ "$component" = postgis-ddl ] && echo "DOCKER4GIS_STANDALONE=true" >>.env
 
     container=$(docker container create "$image") ||
         error "Failed to create container from image $image"
