@@ -549,8 +549,8 @@ response=${response:-}
 # clone them locally on the host after the container exits.
 repos=$(az repos list --query "[].name" --output tsv | tr '\n' ' ') || repos=
 {
-    echo "DEVOPS_PROJECT=$SYSTEM_TEAMPROJECT"
-    echo "DEVOPS_REPOS=$repos"
+    echo "DEVOPS_PROJECT='$SYSTEM_TEAMPROJECT'"
+    echo "DEVOPS_REPOS='$repos'"
 } >>"$ENV_FILE"
 
 log OK
