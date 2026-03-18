@@ -71,6 +71,40 @@ find_docker_user() {
 [ -n "$DOCKER_USER" ] ||
 	find_docker_user
 
+# Find the local project directory to mount into the container for cloning repos.
+# Walk up from the current directory looking for a .env file with
+# DOCKER4GIS_VERSION, which means we're inside a component clone - the project
+# directory is its parent. If not found walking up, look downward for component
+# subdirectories (we're already in the project directory). Fall back to the
+# current directory.
+find_project_dir() {
+	local dir
+	dir=$(realpath .)
+	while [ "$dir" != "/" ]; do
+		if [ -f "$dir/.env" ] && grep -q "^DOCKER4GIS_VERSION=" "$dir/.env" 2>/dev/null; then
+			PROJECT_DIR=$(dirname "$dir")
+			return
+		fi
+		dir=$(dirname "$dir")
+	done
+	local env_file
+	env_file=$(
+		find "$(realpath .)" -maxdepth 2 -name ".env" -type f -print | sort |
+			while IFS= read -r f; do
+				grep -q "^DOCKER4GIS_VERSION=" "$f" 2>/dev/null && echo "$f" && break
+			done
+	)
+	if [ -n "$env_file" ]; then
+		PROJECT_DIR=$(dirname "$(dirname "$env_file")")
+	else
+		PROJECT_DIR=$(realpath .)
+	fi
+}
+
+find_project_dir
+PROJECT_DIR_UID=$(stat -c "%u" "$PROJECT_DIR")
+PROJECT_DIR_GID=$(stat -c "%g" "$PROJECT_DIR")
+
 docker_socket=/var/run/docker.sock
 container_env_file=/devops/env_file
 
@@ -92,6 +126,9 @@ docker container run --name "$CONTAINER" \
 	--env DEVOPS_DEFAULT_POOL="$DEVOPS_DEFAULT_POOL" \
 	--env DEVOPS_VPN_POOL="$DEVOPS_VPN_POOL" \
 	--env ENV_FILE="$container_env_file" \
+	--env PROJECT_DIR_UID="$PROJECT_DIR_UID" \
+	--env PROJECT_DIR_GID="$PROJECT_DIR_GID" \
 	--mount type=bind,source="$ENV_FILE",target="$container_env_file" \
 	--mount type=bind,source="$docker_socket",target="$docker_socket" \
+	--mount type=bind,source="$PROJECT_DIR",target=/project \
 	"$DOCKER_IMAGE" "$@"
