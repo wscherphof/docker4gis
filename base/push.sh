@@ -94,16 +94,21 @@ log "Pushing $image:latest"
 docker image push "$image":latest
 
 push() {
-    if ! git push origin "$@"; then
+    local result
+
+    if git push origin "$@"; then
+        return 0
+    else
         result=$?
-        if [ "$result" = 128 ]; then
-            # Support a non-remote context (e.g. pipeline).
-            echo "INFO: remote not found: origin"
-            return 0
-        else
-            exit "$result"
-        fi
     fi
+
+    if [ "$result" -eq 128 ]; then
+        # Support a non-remote context (e.g. pipeline).
+        echo "INFO: remote not found: origin"
+        return 0
+    fi
+
+    return "$result"
 }
 
 message="$tag [skip ci]"
