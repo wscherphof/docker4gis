@@ -104,6 +104,20 @@ docker4gis=docker4gis
 export DOCKER_VOLUME=$DOCKER_CONTAINER
 docker volume create "$DOCKER_VOLUME" >/dev/null || finish 5
 
+if [ -n "$DOCKER4GIS_STANDALONE" ] && ! [ -f ./run.sh ]; then
+    {
+        echo "The $DOCKER_REPO component is marked as standalone.
+
+If you provide an executable run.sh script, it can be run with
+\`$docker4gis run\`.
+
+The run.sh script would have the following environment variables available:
+"
+        env
+    } | more
+    finish 0
+fi
+
 # Execute the (base) image's run script, passing args read from its args file,
 # substituting environment variables, and skipping lines starting with a #.
 if [ -f args ]; then

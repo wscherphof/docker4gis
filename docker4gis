@@ -487,7 +487,11 @@ POSTFIX_DOMAIN=" >>.env
 component | base-component | template)
     [ "$action" = component ] && help "Initialise a new $docker4gis application component in the current directory.
 Do this in a sibling directory of your application directory (where you ran
-\`$DOCKER4GIS_COMMAND init\`)."
+\`$DOCKER4GIS_COMMAND init\`).
+(During development of the base component, you can do
+\`$DOCKER4GIS_COMMAND $action local\`
+to prevent the locally built base image from being overwritten from the
+Docker registry.)"
 
     [ "$action" = base-component ] && help "Initialise a new $docker4gis base component in the current directory.
 Base components are the repositories in https://hub.docker.com/u/$docker4gis.
@@ -585,11 +589,25 @@ COPY template /template/
         error "Package directory not foud; to create one, run $DOCKER4GIS_COMMAND init. Or did
 you mean base-component?"
 
+    if [ "$1" = local ]; then
+        shift 1
+        local=true
+    fi
+
     pull() {
         local component=$1
         local stderr=$2
 
         image=$docker4gis/$component:latest
+
+        if [ -n "$local" ]; then
+            # Don't pull, but check if the image exists locally.
+            if ! docker image inspect "$image" >/dev/null 2>&1; then
+                echo "Image not found locally: $image" >&2
+                exit 1
+            fi
+            return 0
+        fi
 
         local cmd="docker image pull $image"
         if [ "$stderr" = stderr ]; then
@@ -653,7 +671,6 @@ ENV DOCKER_REPO=\$DOCKER_REPO
 
     [ "$action" = template ] || [ "$component" = n ] && {
         write_dotenv
-        [ "$component" = postgis-ddl ] && echo "DOCKER4GIS_STANDALONE=true" >>.env
         replace_component
         # And we're done!
         finish
@@ -666,7 +683,6 @@ ENV DOCKER_REPO=\$DOCKER_REPO
     DOCKER4GIS_VERSION=$(docker container run --rm "$image" \
         cat /.docker4gis/docker4gis/VERSION)
     write_dotenv
-    [ "$component" = postgis-ddl ] && echo "DOCKER4GIS_STANDALONE=true" >>.env
 
     container=$(docker container create "$image") ||
         error "Failed to create container from image $image"
@@ -946,6 +962,8 @@ processing task, maybe as a one-off instance somewhere \"in the cloud\"."
     echo "DOCKER4GIS_STANDALONE=true" >>.env
 
     component_file=../$DOCKER_USER/components/$DOCKER_REPO
+    [ -f "$component_file" ] ||
+        component_file=../^package/components/$DOCKER_REPO
     [ -f "$component_file" ] && rm "$component_file"
 
     echo "Component $DOCKER_REPO marked as standalone."
@@ -1065,7 +1083,7 @@ The \"set\" action saves the value of a variable to the local file
 
 *)
     echo "Manage $docker4gis applications and their components and base components.
-Usage: $DOCKER4GIS_COMMAND init | component | build|b [COMPONENT] [ARG...] |
+Usage: $DOCKER4GIS_COMMAND init | component [local] | build|b [COMPONENT] [ARG...] |
   run|r | br [COMPONENT] [ARG...] | push|p [COMPONENT] [--no-save] [ARG...] |
   test|t [FILE] | unbuild [COMPONENT] | stop | geoserver | base-component |
   template | $docker4gis | base | login [PASSWORD] [USER] |

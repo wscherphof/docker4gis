@@ -47,12 +47,11 @@ for dotenv in ../*/.env; do
         # shellcheck source=/dev/null
         . "$dotenv"
 
-        # Skip standalone components, except postgis-ddl which must run as a
-        # one-off migration step during package startup.
-        [ -z "$DOCKER4GIS_STANDALONE" ] || [ "$DOCKER_REPO" = postgis-ddl ] || exit
-
         [ "$DOCKER_USER" ] || DOCKER_USER=$(basename "$(realpath "$(dirname "$dotenv")/..")")
         [ "$DOCKER_REPO" ] || DOCKER_REPO=$(basename "$(realpath "$(dirname "$dotenv")")")
+
+        # Skip standalone components.
+        [ -n "$DOCKER4GIS_STANDALONE" ] && exit
         # If this is a docker4gis repo directory, it must have these variables
         # set. Otherwise, exit the subshell (which happens to be the last thing
         # in the for loop).
