@@ -1,10 +1,11 @@
 #!/bin/bash
 
 DOCKER_REPO=${1:?Missing first argument: DOCKER_REPO}
-tag=${2:?Missing second argument: tag}
+DOCKER_TAG=${2:?Missing second argument: DOCKER_TAG}
 shift 2
 
 export DOCKER_REPO
+export DOCKER_TAG
 
 DOCKER_REGISTRY=${DOCKER_REGISTRY:?Missing DOCKER_REGISTRY}
 DOCKER_USER=${DOCKER_USER:?Missing DOCKER_USER}
@@ -23,7 +24,7 @@ export DOCKER_ENV=${DOCKER_ENV:-DEVELOPMENT}
     RESTART=always
 export RESTART
 
-DOCKER_IMAGE=$DOCKER_REGISTRY/$DOCKER_USER/$DOCKER_REPO:$tag
+DOCKER_IMAGE=$DOCKER_REGISTRY/$DOCKER_USER/$DOCKER_REPO:$DOCKER_TAG
 export DOCKER_IMAGE
 
 DOCKER_CONTAINER=$DOCKER_USER-$DOCKER_REPO
@@ -34,7 +35,8 @@ DOCKER_NETWORK=$DOCKER_USER
 [ "$DOCKER_REPO" = proxy ] && DOCKER_NETWORK=$DOCKER_CONTAINER
 export DOCKER_NETWORK
 
-echo "Starting $DOCKER_CONTAINER from $DOCKER_IMAGE..."
+[ -n "$DOCKER4GIS_RUN_ENV" ] ||
+    echo "Starting $DOCKER_CONTAINER from $DOCKER_IMAGE..."
 
 # Pull the image from the registry if we don't have it locally, so that we
 # have it ready to run a new container right after we stop the running one.
@@ -61,7 +63,7 @@ finish() {
 }
 
 echo "DOCKER_ENV=$DOCKER_ENV
-DOCKER_TAG=$tag
+DOCKER_TAG=$DOCKER_TAG
 DOCKER_IMAGE=$DOCKER_IMAGE
 DOCKER_CONTAINER=$DOCKER_CONTAINER
 DOCKER_NETWORK=$DOCKER_NETWORK
@@ -104,17 +106,8 @@ docker4gis=docker4gis
 export DOCKER_VOLUME=$DOCKER_CONTAINER
 docker volume create "$DOCKER_VOLUME" >/dev/null || finish 5
 
-if [ -n "$DOCKER4GIS_STANDALONE" ] && ! [ -f ./run.sh ]; then
-    {
-        echo "The $DOCKER_REPO component is marked as standalone.
-
-If you provide an executable run.sh script, it can be run with
-\`$docker4gis run\`.
-
-The run.sh script would have the following environment variables available:
-"
-        env
-    } | more
+if [ -n "$DOCKER4GIS_RUN_ENV" ]; then
+    env | sort | more
     finish 0
 fi
 
