@@ -712,13 +712,23 @@ ENV DOCKER_REPO=\$DOCKER_REPO
             }
         fi
     fi
+
     cp -r ./template/"$template"/. .
     rm -rf ./template
     rename_replace '{{DOCKER_USER}}' "$DOCKER_USER"
+
+    # With `dg component local`, amend the template's Dockerfile to be FROM
+    # the locally built :latest version.
+    if [ -n "$local" ]; then
+        sed -i \
+            "s|\b$docker4gis/$component:\S*|$docker4gis/$component:latest|g" \
+            Dockerfile
+    fi
+
     finish
     ;;
 
-build | b | run | r | br | push | p | test | t | unbuild | stop | geoserver)
+build | b | run | r | br | run-env | env | push | p | test | t | unbuild | stop | geoserver)
     [ "$action" = build ] || [ "$action" = b ] && help "Build a new image for the application component in the current directory.
 Or pass the name of a sibling directory to build that component there.
 
@@ -826,6 +836,12 @@ container, to the geoserver component repository in the current directory."
     [ "$action" = r ] && action=run
     [ "$action" = p ] && action=push
     [ "$action" = t ] && action='test'
+
+    [ "$action" = run-env ] || [ "$action" = env ] && {
+        help "List the environment variables available at runtime."
+        export DOCKER4GIS_RUN_ENV=true
+        action=run
+    }
 
     "$DOCKER_BASE/main.sh" . "$action" "$@"
     ;;
@@ -966,6 +982,15 @@ processing task, maybe as a one-off instance somewhere \"in the cloud\"."
         component_file=../^package/components/$DOCKER_REPO
     [ -f "$component_file" ] && rm "$component_file"
 
+    [ -x run.sh ] || {
+        {
+            echo "#!/bin/bash"
+            echo ""
+            echo "# This script is run on \`$DOCKER4GIS_COMMAND run\` for this standalone component."
+        } >run.sh
+        chmod +x run.sh
+    }
+
     echo "Component $DOCKER_REPO marked as standalone."
     ;;
 
@@ -1086,7 +1111,7 @@ The \"set\" action saves the value of a variable to the local file
 Usage: $DOCKER4GIS_COMMAND init | component [local] | build|b [COMPONENT] [ARG...] |
   run|r | br [COMPONENT] [ARG...] | push|p [COMPONENT] [--no-save] [ARG...] |
   test|t [FILE] | unbuild [COMPONENT] | stop | geoserver | base-component |
-  template | $docker4gis | base | login [PASSWORD] [USER] |
+  template | $docker4gis | base | login [PASSWORD] [USER] | run-env|env |
   version|v [local] | bump [push] | standalone | git-push|gp [BRANCH_NAME...] |
   run-single|rs [DOCKER_TAG] [DOCKER_REPO] [DOCKER_USER] [DOCKER_REGISTRY] |
   bats | all EXECUTABLE|self [ARG...] |
