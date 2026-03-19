@@ -712,9 +712,19 @@ ENV DOCKER_REPO=\$DOCKER_REPO
             }
         fi
     fi
+
     cp -r ./template/"$template"/. .
     rm -rf ./template
     rename_replace '{{DOCKER_USER}}' "$DOCKER_USER"
+
+    # With `dg component local`, amend the template's Dockerfile to be FROM
+    # the locally built :latest version.
+    if [ -n "$local" ]; then
+        sed -i \
+            "s|\b$docker4gis/$component:\S*|$docker4gis/$component:latest|g" \
+            Dockerfile
+    fi
+
     finish
     ;;
 
