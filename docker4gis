@@ -855,8 +855,9 @@ container, to the geoserver component repository in the current directory."
     if component_root=$(_find_component_root); then
         cd "$component_root" || exit 1
     else
-        # Not inside a component - fall back to the monorepo root's ^package
-        # (e.g. when running from the repo root or from components/).
+        # Not inside a component - fall back to the monorepo root's ^package,
+        # but only when we're somewhere in between (e.g. components/) not when
+        # we're already at the monorepo root (where main.sh handles dispatching).
         monorepo_root=$(
             dir=$(realpath .)
             while [ "$dir" != "/" ]; do
@@ -864,7 +865,8 @@ container, to the geoserver component repository in the current directory."
                 dir=$(dirname "$dir")
             done
             exit 1
-        ) && cd "$monorepo_root/components/^package" || exit 1
+        ) && [ "$(realpath .)" != "$monorepo_root" ] && \
+            cd "$monorepo_root/components/^package" || true
     fi
 
     # For application components, load the package component's environment
