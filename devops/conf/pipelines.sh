@@ -59,7 +59,7 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
     if [ "$PR" ]; then
         # Create a branch policy to require a successful build before merging,
         # but only if no policy for this build definition already exists.
-        existing_policies=$(az repos policy build list \
+        existing_policies=$(az repos policy list \
             --repository-id "$REPOSITORY_ID" \
             --branch main)
         already_exists=$(node --print "
