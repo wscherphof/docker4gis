@@ -32,23 +32,29 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
 
     log Create pipeline "$name"
 
-    # Create the pipeline, a.k.a. build definition.
-    build_definition=$(/devops/rest.sh project POST build/definitions '' "{
-        \"name\": \"$name\",
-        \"repository\": {
-            \"type\": \"TfsGit\",
-            \"name\": \"$REPOSITORY\"
-        },
-        \"process\": {
-            \"yamlFilename\": \"${YAML_DIR:+$YAML_DIR/}$yaml\",
-            \"type\": 2
-        },
-        \"variableGroups\": [ { \"id\": $VARIABLE_GROUP_ID } ],
-        \"queue\": { \"name\": \"Azure Pipelines\" },
-        $triggers
-    }")
+    # Check if pipeline already exists; if so, reuse it.
+    existing=$(/devops/rest.sh project GET build/definitions \
+        "name=$(node --print "encodeURIComponent('$name')")")
+    build_definition_id=$(node --print "($existing).count > 0 ? ($existing).value[0].id : 'new'")
 
-    build_definition_id=$(node --print "($build_definition).id")
+    if [ "$build_definition_id" = new ]; then
+        # Create the pipeline, a.k.a. build definition.
+        build_definition=$(/devops/rest.sh project POST build/definitions '' "{
+            \"name\": \"$name\",
+            \"repository\": {
+                \"type\": \"TfsGit\",
+                \"name\": \"$REPOSITORY\"
+            },
+            \"process\": {
+                \"yamlFilename\": \"${YAML_DIR:+$YAML_DIR/}$yaml\",
+                \"type\": 2
+            },
+            \"variableGroups\": [ { \"id\": $VARIABLE_GROUP_ID } ],
+            \"queue\": { \"name\": \"Azure Pipelines\" },
+            $triggers
+        }")
+        build_definition_id=$(node --print "($build_definition).id")
+    fi
 
     if [ "$PR" ]; then
         # Create a policy to require a successful build before merging.
