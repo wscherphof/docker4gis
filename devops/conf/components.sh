@@ -174,10 +174,7 @@ else
         2>/dev/null)
     # Make DevOps realise the new project exists.
     sleep 5
-    default_repository_id_to_delete=$(
-        az repos show --repository "$SYSTEM_TEAMPROJECT" --query id --output tsv
-    ) &&
-        get_project_id
+    get_project_id
 fi || exit
 
 log Check Project Administrators group membership
@@ -294,8 +291,9 @@ export VARIABLE_GROUP_ID
 # Begin of the main monorepo setup.
 # ------------------------------------------------------------------------------
 
-# The monorepo: one repository for the entire project.
-REPOSITORY=$DOCKER_USER
+# The monorepo: use the default repository Azure created for the project.
+# It is always named after the project.
+REPOSITORY=$SYSTEM_TEAMPROJECT
 export REPOSITORY
 
 # Build the list of non-package components from args. Proxy is always included.
@@ -314,14 +312,9 @@ policy_exempt allow || exit
 
 repository_result=0
 
-# Create the repository if it doesn't exist.
-if az repos show --repository "$REPOSITORY" &>/dev/null; then
-    log "Repository $REPOSITORY already exists"
-    REPOSITORY_ID=$(az repos show --repository "$REPOSITORY" --query id --output tsv)
-    export REPOSITORY_ID
-else
-    create_repository || repository_result=$?
-fi
+# The default repo (named after the project) always exists; just get its ID.
+REPOSITORY_ID=$(az repos show --repository "$REPOSITORY" --query id --output tsv) &&
+    export REPOSITORY_ID || repository_result=$?
 
 # Clone the repo if not already present locally.
 if [ "$repository_result" = 0 ] && ! [ -d ~/"$SYSTEM_TEAMPROJECT/$REPOSITORY" ]; then
@@ -356,7 +349,10 @@ if [ "$repository_result" = 0 ]; then
         if $needs_push; then
             git add . &&
                 git commit -m "docker4gis init/component" &&
-                git push origin || exit 1
+                git push origin &&
+                # Set the default branch to main now that the first commit exists.
+                az repos update --repository="$REPOSITORY" \
+                    --default-branch main >/dev/null || exit 1
         fi
     ) || repository_result=$?
 fi
@@ -386,12 +382,6 @@ policy_exempt deny || exit
 # ------------------------------------------------------------------------------
 # End of the main monorepo setup.
 # ------------------------------------------------------------------------------
-
-# Delete the default repository, if we created a new project.
-if [ -n "$default_repository_id_to_delete" ]; then
-    log "Delete default repository $SYSTEM_TEAMPROJECT"
-    response=$(az repos delete --yes --id "$default_repository_id_to_delete")
-fi || exit
 
 # Create a cross-repository policy (if it doesn't exist) to require all PR
 # comments to be roseolved before merging.
