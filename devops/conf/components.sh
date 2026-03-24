@@ -52,14 +52,10 @@ set_env() {
             read -rp "$message : " input_value
         fi
 
-        # Use current value if no input and no explicit default, otherwise use
-        # explicit default
+        # When no input: use the displayed default, which is current_value if
+        # set, otherwise the explicit fallback $3.
         if [ -z "$input_value" ]; then
-            if [ -n "$3" ]; then
-                value="$3"
-            else
-                value="$current_value"
-            fi
+            value="${current_value:-$3}"
         else
             value="$input_value"
         fi
