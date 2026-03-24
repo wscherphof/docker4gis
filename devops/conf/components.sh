@@ -369,8 +369,8 @@ fi
 # Create pipelines for each component (YAML files under components/<name>/).
 for component in "${non_package_components[@]}"; do
     [ "$repository_result" = 0 ] || break
-    COMPONENT=$component YAML_DIR="components/$component" /devops/pipelines.sh \
-        || repository_result=$?
+    COMPONENT=$component YAML_DIR="components/$component" /devops/pipelines.sh ||
+        repository_result=$?
 done
 
 # Undo temporarily allow "Bypass policies when pushing" for "Project
@@ -557,13 +557,5 @@ create_pool "$VPN_POOL" || exit
 # We use `response=$(...)` to prevent the resonse from being echoed to the
 # console.
 response=${response:-}
-
-# Save the repo list and project name to the env_file so that run.sh can
-# clone them locally on the host after the container exits.
-repos=$(az repos list --query "[].name" --output tsv | tr '\n' ' ') || repos=
-{
-    echo "DEVOPS_PROJECT='$SYSTEM_TEAMPROJECT'"
-    echo "DEVOPS_REPOS='$repos'"
-} >>"$ENV_FILE"
 
 log OK
