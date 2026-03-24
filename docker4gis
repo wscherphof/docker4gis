@@ -836,14 +836,15 @@ Except the proxy container, since that may still serve other applications."
     [ "$action" = geoserver ] && help "Copy the GeoServer configuration files out of the running $DOCKER_USER-geoserver
 container, to the geoserver component repository in the current directory."
 
-    # Walk up from cwd to find the component root (direct child of a
-    # 'components/' directory). This lets the user run dg actions from any
-    # subdirectory inside a component.
+    # Walk up from cwd to find the component root: the nearest directory that
+    # has a .env with DOCKER4GIS_VERSION (but not DOCKER4GIS_ROOT=true, which
+    # would be the monorepo root rather than a component).
     _find_component_root() {
         local dir
         dir=$(realpath .)
         while [ "$dir" != "/" ]; do
-            if [ "$(basename "$(dirname "$dir")")" = "components" ]; then
+            if grep -q "^DOCKER4GIS_VERSION=" "$dir/.env" 2>/dev/null &&
+                ! grep -q "^DOCKER4GIS_ROOT=true" "$dir/.env" 2>/dev/null; then
                 echo "$dir"
                 return 0
             fi
