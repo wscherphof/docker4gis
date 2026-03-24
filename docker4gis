@@ -836,6 +836,25 @@ Except the proxy container, since that may still serve other applications."
     [ "$action" = geoserver ] && help "Copy the GeoServer configuration files out of the running $DOCKER_USER-geoserver
 container, to the geoserver component repository in the current directory."
 
+    # Walk up from cwd to find the component root (direct child of a
+    # 'components/' directory). This lets the user run dg actions from any
+    # subdirectory inside a component.
+    _find_component_root() {
+        local dir
+        dir=$(realpath .)
+        while [ "$dir" != "/" ]; do
+            if [ "$(basename "$(dirname "$dir")")" = "components" ]; then
+                echo "$dir"
+                return 0
+            fi
+            dir=$(dirname "$dir")
+        done
+        return 1
+    }
+    if component_root=$(_find_component_root); then
+        cd "$component_root" || exit 1
+    fi
+
     # For application components, load the package component's environment
     # values. Components live in components/<name>/ so the package is at ../../.
     # For base components (build), there's no package component, and nothing
