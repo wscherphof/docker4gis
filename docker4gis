@@ -490,10 +490,27 @@ POSTFIX_DOMAIN=" >>.env
     mkdir -p "components/^package"
 
     # Initialise the ^package component in its directory.
+    # Note: docker4gis/package has no /template; we create the files directly.
     (
         cd "components/^package" || exit 1
-        "$DOCKER_BASE/../docker4gis" component package
-    )
+
+        # Write the component's .env (no DOCKER_REGISTRY - inherited from root).
+        echo "DOCKER_REPO=package
+DOCKER4GIS_VERSION=$(version)" >.env
+
+        # Build script delegates to the package base-image build.
+        {
+            echo '#!/bin/bash'
+            echo '"$DOCKER_BASE/package/build.sh"'
+        } >build.sh
+        chmod +x build.sh
+
+        # Create pipeline YAML files (action=init → is_package=true in pipeline()).
+        pipeline
+
+        # Create package.json for version tracking.
+        package_json
+    ) || exit 1
 
     # Create the version-tracking directory inside ^package.
     mkdir -p "components/^package/components"
