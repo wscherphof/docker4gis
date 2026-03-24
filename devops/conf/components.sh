@@ -358,6 +358,20 @@ if [ "$repository_result" = 0 ] && ! [ -d ~/"$SYSTEM_TEAMPROJECT/$REPOSITORY" ];
     git_clone || repository_result=$?
 fi
 
+# Discover existing components from the cloned repo and add to the list.
+if [ "$repository_result" = 0 ]; then
+    repo_components_dir=~/"$SYSTEM_TEAMPROJECT/$REPOSITORY/components"
+    if [ -d "$repo_components_dir" ]; then
+        for comp_dir in "$repo_components_dir"/*/; do
+            comp=$(basename "$comp_dir")
+            # Skip ^package (handled separately) and duplicates.
+            [[ "$comp" == "^package" ]] && continue
+            [[ " ${non_package_components[*]} " == *" $comp "* ]] ||
+                non_package_components+=("$comp")
+        done
+    fi
+fi
+
 # Initialise the package and components in the monorepo.
 if [ "$repository_result" = 0 ]; then
     (
