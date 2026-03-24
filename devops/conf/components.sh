@@ -17,8 +17,8 @@ fi
 write_root_env() {
     local key=$1 value=$2
     [ -n "$ROOT_ENV_FILE" ] && [ -f "$ROOT_ENV_FILE" ] || return 0
-    local quoted_value
-    quoted_value=$(printf '%q' "$value")
+    # Single-quote the value so spaces are safe and cut-based readers get the raw value.
+    local quoted_value="'${value//\'/\'\\\'\'}'"
     if grep -q "^$key=" "$ROOT_ENV_FILE"; then
         sed -i "s|^$key=.*|$key=$quoted_value|" "$ROOT_ENV_FILE"
     else

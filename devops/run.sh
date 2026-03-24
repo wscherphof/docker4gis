@@ -68,7 +68,8 @@ find_root_env() {
 root_env_file=$(find_root_env) || true
 
 if [ -n "$root_env_file" ]; then
-	read_root_env() { grep "^$1=" "$root_env_file" 2>/dev/null | cut -d= -f2-; }
+	# Strip optional surrounding single quotes (values may be quoted for space-safety).
+	read_root_env() { grep "^$1=" "$root_env_file" 2>/dev/null | cut -d= -f2- | sed "s/^'//;s/'$//"; }
 	DOCKER_USER=$(read_root_env DOCKER_USER)
 	DOCKER_REGISTRY=$(read_root_env DOCKER_REGISTRY)
 	DEVOPS_ORGANISATION=$(read_root_env DEVOPS_ORGANISATION)
