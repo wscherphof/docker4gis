@@ -148,6 +148,7 @@ pipeline() {
                 login_steps="
 - checkout: self
   persistCredentials: true
+  fetchDepth: 1
 "
             fi
             login_steps+="  displayName: Git login

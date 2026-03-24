@@ -4,4 +4,4 @@
 
 origin=$AUTHORISED_COLLECTION_URI$SYSTEM_TEAMPROJECT/_git/$REPOSITORY
 
-git "$@" "$origin"
+git "$@" --depth 1 "$origin"
