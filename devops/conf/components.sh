@@ -109,6 +109,11 @@ set_env SYSTEM_COLLECTIONURI \
 # shellcheck source=/dev/null
 source /devops/env_file
 
+# Map stored pool names to the DEVOPS_ variables that docker4gis pipeline()
+# uses when generating pipeline YAML files.
+export DEVOPS_DEFAULT_POOL=$DEFAULT_POOL
+export DEVOPS_VPN_POOL=$VPN_POOL
+
 # Login to the Azure DevOps CLI.
 export AZURE_DEVOPS_EXT_PAT=$PAT
 
