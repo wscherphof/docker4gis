@@ -189,7 +189,8 @@ pr:
 stages:
 - stage: $stage
   displayName: $stage_display_name
-  pool: $DEVOPS_DEFAULT_POOL
+  pool:
+    name: $DEVOPS_DEFAULT_POOL
   jobs:
   - job: $job
     displayName: $job_display_name
@@ -291,7 +292,8 @@ $steps" >"$file"
   - ci_stage$extra_dependency
   # You probably need to set up a custom pool, with agents that run from a
   # location that is whitelisted in your target servers' firewalls.
-  pool: $DEVOPS_VPN_POOL
+  pool:
+    name: $DEVOPS_VPN_POOL
   jobs:
   - deployment: ${environment}_deploy_job
     displayName: Deploy $environment job
