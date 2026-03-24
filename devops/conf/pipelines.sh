@@ -59,12 +59,14 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
     if [ "$PR" ]; then
         # Create a branch policy to require a successful build before merging,
         # but only if no policy for this build definition already exists.
-        existing_policy=$(/devops/rest.sh project GET policy/configurations \
-            "policyType=0609bce9-af00-4e28-ba36-3e2fb89c6e9e")
+        existing_policies=$(az repos policy build list \
+            --repository-id "$REPOSITORY_ID" \
+            --branch main)
         already_exists=$(node --print "
-            var policies = ($existing_policy).value || [];
+            var policies = $existing_policies || [];
             policies.some(function(p) {
-                return p.settings && Number(p.settings.buildDefinitionId) === Number($build_definition_id);
+                return p.settings &&
+                    Number(p.settings.buildDefinitionId) === Number($build_definition_id);
             });
         ")
         if [ "$already_exists" = true ]; then
