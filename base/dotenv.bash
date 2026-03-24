@@ -19,7 +19,15 @@ dotenv() {
             local dir
             dir=$(realpath "$(dirname "$file")")
             DOCKER_REPO=${DOCKER_REPO:-$(basename "$dir")}
-            DOCKER_USER=${DOCKER_USER:-$(basename "$(dirname "$dir")")}
+            local parent_dir
+            parent_dir=$(dirname "$dir")
+            if [ "$(basename "$parent_dir")" = "components" ]; then
+                # Monorepo: component is inside a components/ subdir; derive
+                # DOCKER_USER from the grandparent (the monorepo root).
+                DOCKER_USER=${DOCKER_USER:-$(basename "$(dirname "$parent_dir")")}
+            else
+                DOCKER_USER=${DOCKER_USER:-$(basename "$parent_dir")}
+            fi
         fi
         [ "$flag" = 'export' ] && {
             set +a
