@@ -549,3 +549,4 @@ create_pool "$VPN_POOL" || exit
 response=${response:-}
 
 log OK
+echo "  ${SYSTEM_COLLECTIONURI%/}/$SYSTEM_TEAMPROJECT"
