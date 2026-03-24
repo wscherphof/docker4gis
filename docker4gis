@@ -477,8 +477,14 @@ The name of the current directory will be used as the application name."
     echo "DOCKER4GIS_VERSION=$(version)
 DOCKER4GIS_ROOT=true
 DOCKER_REGISTRY=$DOCKER_REGISTRY
-DOCKER_USER=$DOCKER_USER
-DEBUG=false
+DOCKER_USER=$DOCKER_USER" >>.env
+    # Write DEVOPS vars single-quoted (right after DOCKER_USER) so spaces are preserved.
+    _write_env_quoted() { local k=$1 v=$2; printf "%s='%s'\n" "$k" "${v//\'/\'\\\'\'}" >>.env; }
+    _write_env_quoted DEVOPS_ORGANISATION "${DEVOPS_ORGANISATION:-}"
+    _write_env_quoted DEVOPS_DEFAULT_POOL "${DEVOPS_DEFAULT_POOL:-}"
+    _write_env_quoted DEVOPS_VPN_POOL "${DEVOPS_VPN_POOL:-}"
+    unset -f _write_env_quoted
+    echo "DEBUG=false
 PROXY_HOST=
 PROXY_PORT=
 PROXY_PORT_HTTP=
@@ -501,12 +507,6 @@ MYSQL_DATABASE=
 MYSQL_ROOT_PASSWORD=
 POSTFIX_DESTINATION=
 POSTFIX_DOMAIN=" >>.env
-    # Append DEVOPS vars single-quoted so spaces are preserved when sourced or cut-parsed.
-    _write_env_quoted() { local k=$1 v=$2; printf "%s='%s'\n" "$k" "${v//\'/\'\\\'\'}" >>.env; }
-    _write_env_quoted DEVOPS_ORGANISATION "${DEVOPS_ORGANISATION:-}"
-    _write_env_quoted DEVOPS_DEFAULT_POOL "${DEVOPS_DEFAULT_POOL:-}"
-    _write_env_quoted DEVOPS_VPN_POOL "${DEVOPS_VPN_POOL:-}"
-    unset -f _write_env_quoted
 
     mkdir -p "components/^package"
 
