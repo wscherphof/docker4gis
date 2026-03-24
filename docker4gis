@@ -854,6 +854,17 @@ container, to the geoserver component repository in the current directory."
     }
     if component_root=$(_find_component_root); then
         cd "$component_root" || exit 1
+    else
+        # Not inside a component - fall back to the monorepo root's ^package
+        # (e.g. when running from the repo root or from components/).
+        monorepo_root=$(
+            dir=$(realpath .)
+            while [ "$dir" != "/" ]; do
+                grep -q "^DOCKER4GIS_ROOT=true" "$dir/.env" 2>/dev/null && echo "$dir" && exit 0
+                dir=$(dirname "$dir")
+            done
+            exit 1
+        ) && cd "$monorepo_root/components/^package" || exit 1
     fi
 
     # For application components, load the package component's environment
