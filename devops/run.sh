@@ -52,18 +52,19 @@ docker image build -t "$DOCKER_IMAGE" "$(dirname "$0")" >"$out" 2>"$err" || fail
 rm -rf "$docker4gis_dir"
 
 find_docker_user() {
-	while read -r env_file; do
-		grep "^DOCKER4GIS_VERSION=" "$env_file" &>/dev/null &&
-			# The file is in a docker4gis component directory. We need the name
-			# of the parent directory.
-			DOCKER_USER=$(basename "$(dirname "$(dirname "$env_file")")") &&
+	# Walk up from cwd looking for a .env with DOCKER4GIS_ROOT=true and a
+	# DOCKER_USER value - that's the monorepo root.
+	local dir
+	dir=$(realpath .)
+	while [ "$dir" != "/" ]; do
+		if grep -q "^DOCKER4GIS_ROOT=true" "$dir/.env" 2>/dev/null; then
+			DOCKER_USER=$(grep "^DOCKER_USER=" "$dir/.env" | cut -d= -f2-)
+			[ -n "$DOCKER_USER" ] && return
 			break
-		# Find .env files in current directory direct subdirectories (using
-		# -print | sort to start with the one in the current directory).
-	done < <(find "$(realpath .)" -maxdepth 2 -name ".env" -type f -print | sort)
-	[ -z "$DOCKER_USER" ] &&
-		# Use the current directory name as a fallback.
-		DOCKER_USER=$(basename "$(realpath .)")
+		fi
+		dir=$(dirname "$dir")
+	done
+	# No monorepo root found - leave DOCKER_USER empty; the prompt will ask.
 }
 
 # Set the DOCKER_USER variable (used as the default value for the DevOps Project
