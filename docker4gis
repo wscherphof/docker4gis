@@ -104,7 +104,7 @@ pipeline() {
     # For monorepo components, pipeline steps that run docker4gis commands must
     # run in the component's subdirectory (Azure Pipelines checks out at root).
     local working_dir_step=""
-    if ! [ "$is_package" ] && ! [ "$is_base_component" ]; then
+    if ! [ "$is_base_component" ]; then
         working_dir_step="
   workingDirectory: components/$repo"
     fi
@@ -506,7 +506,7 @@ DOCKER4GIS_VERSION=$(version)" >.env
         chmod +x build.sh
 
         # Create pipeline YAML files (action=init → is_package=true in pipeline()).
-        pipeline
+        repo=package pipeline
 
         # Create package.json for version tracking.
         package_json
