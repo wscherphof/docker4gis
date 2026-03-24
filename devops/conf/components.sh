@@ -599,5 +599,4 @@ create_pool "$VPN_POOL" || exit
 # console.
 response=${response:-}
 
-log OK
-echo "  ${SYSTEM_COLLECTIONURI%/}/$SYSTEM_TEAMPROJECT"
+log "OK - ${SYSTEM_COLLECTIONURI%/}/$SYSTEM_TEAMPROJECT"

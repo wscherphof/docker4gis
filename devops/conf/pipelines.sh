@@ -30,16 +30,20 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
         triggers=$triggers_definition
     fi
 
-    log Create pipeline "$name"
-
     # Check if pipeline already exists; if so, reuse it.
     existing=$(/devops/rest.sh project GET build/definitions \
         "name=$(node --print "encodeURIComponent('$name')")")
     build_definition_id=$(node --print "($existing).count > 0 ? ($existing).value[0].id : 'new'")
 
     if [ "$build_definition_id" = new ]; then
-        # Create the pipeline, a.k.a. build definition.
-        build_definition=$(/devops/rest.sh project POST build/definitions '' "{
+        log Create pipeline "$name"
+    else
+        log "Pipeline $name exists"
+        continue
+    fi
+
+    # Create the pipeline, a.k.a. build definition.
+    build_definition=$(/devops/rest.sh project POST build/definitions '' "{
             \"name\": \"$name\",
             \"repository\": {
                 \"type\": \"TfsGit\",
@@ -53,39 +57,23 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
             \"queue\": { \"name\": \"Azure Pipelines\" },
             $triggers
         }")
-        build_definition_id=$(node --print "($build_definition).id")
-    fi
+    build_definition_id=$(node --print "($build_definition).id")
 
     if [ "$PR" ]; then
-        # Create a branch policy to require a successful build before merging,
-        # but only if no policy for this build definition already exists.
-        existing_policies=$(az repos policy list \
+        # Create a branch policy to require a successful build before merging.
+        log Create branch policy "$name"
+        path_filter_args=()
+        [ -n "$YAML_DIR" ] && path_filter_args=(--path-filter "/components/$COMPONENT/*")
+        response=$(az repos policy build create --blocking true \
+            --build-definition-id "$build_definition_id" \
             --repository-id "$REPOSITORY_ID" \
-            --branch main)
-        already_exists=$(node --print "
-            var policies = $existing_policies || [];
-            policies.some(function(p) {
-                return p.settings &&
-                    Number(p.settings.buildDefinitionId) === Number($build_definition_id);
-            });
-        ")
-        if [ "$already_exists" = true ]; then
-            log "Branch policy $name already exists; skip"
-        else
-            log Create branch policy "$name"
-            path_filter_args=()
-            [ -n "$YAML_DIR" ] && path_filter_args=(--path-filter "/components/$COMPONENT/*")
-            response=$(az repos policy build create --blocking true \
-                --build-definition-id "$build_definition_id" \
-                --repository-id "$REPOSITORY_ID" \
-                --branch main \
-                --display-name "$name" \
-                --enabled true \
-                --manual-queue-only false \
-                --queue-on-source-update-only false \
-                --valid-duration 0 \
-                "${path_filter_args[@]}")
-        fi
+            --branch main \
+            --display-name "$name" \
+            --enabled true \
+            --manual-queue-only false \
+            --queue-on-source-update-only false \
+            --valid-duration 0 \
+            "${path_filter_args[@]}")
     else
         # Permit the continuous integration pipeline to use the deployment
         # environments and service connections.
