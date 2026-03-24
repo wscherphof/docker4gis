@@ -105,8 +105,10 @@ pipeline() {
     # run in the component's subdirectory (Azure Pipelines checks out at root).
     local working_dir_step=""
     if ! [ "$is_base_component" ]; then
+        local dir_name
+        dir_name=$(basename "$PWD")
         working_dir_step="
-  workingDirectory: components/$repo"
+  workingDirectory: components/$dir_name"
     fi
 
     local steps
@@ -506,7 +508,7 @@ DOCKER4GIS_VERSION=$(version)" >.env
         chmod +x build.sh
 
         # Create pipeline YAML files (action=init → is_package=true in pipeline()).
-        repo=package pipeline
+        pipeline
 
         # Create package.json for version tracking.
         package_json
