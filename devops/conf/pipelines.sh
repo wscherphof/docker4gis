@@ -19,7 +19,8 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
 
     PR=
     triggers=
-    name=${COMPONENT:-$REPOSITORY}
+    name=${COMPONENT#^}
+    name=${name:-$REPOSITORY}
 
     [ "$yaml" = "$build_validation_yaml" ] && PR=true
 
