@@ -51,26 +51,35 @@ docker image build -t "$DOCKER_IMAGE" "$(dirname "$0")" >"$out" 2>"$err" || fail
 # Clean up.
 rm -rf "$docker4gis_dir"
 
-find_docker_user() {
-	# Walk up from cwd looking for a .env with DOCKER4GIS_ROOT=true and a
-	# DOCKER_USER value - that's the monorepo root.
+find_root_env() {
+	# Walk up from cwd looking for a .env with DOCKER4GIS_ROOT=true.
 	local dir
 	dir=$(realpath .)
 	while [ "$dir" != "/" ]; do
 		if grep -q "^DOCKER4GIS_ROOT=true" "$dir/.env" 2>/dev/null; then
-			DOCKER_USER=$(grep "^DOCKER_USER=" "$dir/.env" | cut -d= -f2-)
-			[ -n "$DOCKER_USER" ] && return
-			break
+			echo "$dir/.env"
+			return 0
 		fi
 		dir=$(dirname "$dir")
 	done
-	# No monorepo root found - leave DOCKER_USER empty; the prompt will ask.
+	return 1
 }
 
-# Set the DOCKER_USER variable (used as the default value for the DevOps Project
-# Name).
-[ -n "$DOCKER_USER" ] ||
-	find_docker_user
+root_env_file=$(find_root_env) || true
+
+if [ -n "$root_env_file" ]; then
+	read_root_env() { grep "^$1=" "$root_env_file" 2>/dev/null | cut -d= -f2-; }
+	DOCKER_USER=$(read_root_env DOCKER_USER)
+	DOCKER_REGISTRY=$(read_root_env DOCKER_REGISTRY)
+	DEVOPS_ORGANISATION=$(read_root_env DEVOPS_ORGANISATION)
+	DEVOPS_DEFAULT_POOL=$(read_root_env DEVOPS_DEFAULT_POOL)
+	DEVOPS_VPN_POOL=$(read_root_env DEVOPS_VPN_POOL)
+fi
+
+root_env_mount=()
+[ -n "$root_env_file" ] && root_env_mount=(
+	--mount "type=bind,source=$root_env_file,target=/devops/root_env_file"
+)
 
 docker_socket=/var/run/docker.sock
 container_env_file=/devops/env_file
@@ -86,12 +95,14 @@ docker container run --name "$CONTAINER" \
 	--rm \
 	--privileged \
 	-ti \
+	"${root_env_mount[@]}" \
 	--env DEBUG="$DEBUG" \
 	--env DOCKER_USER="$DOCKER_USER" \
+	--env DOCKER_REGISTRY="$DOCKER_REGISTRY" \
 	--env DEVOPS_ORGANISATION="$DEVOPS_ORGANISATION" \
-	--env DEVOPS_DOCKER_REGISTRY="$DEVOPS_DOCKER_REGISTRY" \
 	--env DEVOPS_DEFAULT_POOL="$DEVOPS_DEFAULT_POOL" \
 	--env DEVOPS_VPN_POOL="$DEVOPS_VPN_POOL" \
+	--env ROOT_ENV_FILE="${root_env_file:+/devops/root_env_file}" \
 	--env ENV_FILE="$container_env_file" \
 	--mount type=bind,source="$ENV_FILE",target="$container_env_file" \
 	--mount type=bind,source="$docker_socket",target="$docker_socket" \

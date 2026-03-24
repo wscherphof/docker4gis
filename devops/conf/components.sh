@@ -13,6 +13,17 @@ elif [[ $project =~ ^--project= ]]; then
     shift
 fi
 
+# Write or update a key=value line in the root .env file (if mounted).
+write_root_env() {
+    local key=$1 value=$2
+    [ -n "$ROOT_ENV_FILE" ] && [ -f "$ROOT_ENV_FILE" ] || return 0
+    if grep -q "^$key=" "$ROOT_ENV_FILE"; then
+        sed -i "s|^$key=.*|$key=$value|" "$ROOT_ENV_FILE"
+    else
+        echo "$key=$value" >>"$ROOT_ENV_FILE"
+    fi
+}
+
 set_env() {
     local name=$1
     local message=$2
@@ -74,36 +85,61 @@ set_env() {
     fi
 }
 
-set_env SYSTEM_TEAMPROJECT \
-    "DevOps Project" \
-    "$DOCKER_USER"
+# SYSTEM_TEAMPROJECT: use DOCKER_USER from root .env without asking.
+# Only prompt if we have no project name at all.
+if [ -z "$SYSTEM_TEAMPROJECT" ]; then
+    if [ -n "$DOCKER_USER" ]; then
+        SYSTEM_TEAMPROJECT=$DOCKER_USER
+    else
+        set_env SYSTEM_TEAMPROJECT "DevOps Project"
+    fi
+fi
 
 export SYSTEM_TEAMPROJECT
 
-# Read current values from file.
+# Read stored values from env_file.
 # shellcheck source=/dev/null
 source /devops/env_file
 
 doc_url="https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops&toc=%2Fazure%2Fdevops%2Forganizations%2Ftoc.json&tabs=Windows#create-a-pat"
 message="Personal Access Token (full access, incl. project creation)"
+
+# PAT: always ask; never saved to root .env (it's a personal secret).
 set_env PAT \
     "$message - see $doc_url"
 
-set_env DEFAULT_POOL \
-    "Pipeline Agent Pool for general jobs" \
-    "$DEVOPS_DEFAULT_POOL"
+# For all other config values: if already known from root .env (passed via env),
+# apply directly without prompting; otherwise ask and write back to root .env.
 
-set_env VPN_POOL \
-    "Pipeline Agent Pool for deployment jobs" \
-    "$DEVOPS_VPN_POOL"
+if [ -n "$DOCKER_REGISTRY" ]; then
+    /devops/set.sh registry "$DOCKER_REGISTRY"
+else
+    set_env DOCKER_REGISTRY "Docker Registry"
+fi
 
-set_env DOCKER_REGISTRY \
-    "Docker Registry" \
-    "$DEVOPS_DOCKER_REGISTRY"
+if [ -n "$DEVOPS_DEFAULT_POOL" ]; then
+    /devops/set.sh default "$DEVOPS_DEFAULT_POOL"
+else
+    set_env DEFAULT_POOL "Pipeline Agent Pool for general jobs"
+    source /devops/env_file
+    write_root_env DEVOPS_DEFAULT_POOL "$DEFAULT_POOL"
+fi
 
-set_env SYSTEM_COLLECTIONURI \
-    "DevOps Organisation" \
-    "$DEVOPS_ORGANISATION"
+if [ -n "$DEVOPS_VPN_POOL" ]; then
+    /devops/set.sh vpn "$DEVOPS_VPN_POOL"
+else
+    set_env VPN_POOL "Pipeline Agent Pool for deployment jobs"
+    source /devops/env_file
+    write_root_env DEVOPS_VPN_POOL "$VPN_POOL"
+fi
+
+if [ -n "$DEVOPS_ORGANISATION" ]; then
+    /devops/set.sh organisation "$DEVOPS_ORGANISATION"
+else
+    set_env SYSTEM_COLLECTIONURI "DevOps Organisation"
+    source /devops/env_file
+    write_root_env DEVOPS_ORGANISATION "$SYSTEM_COLLECTIONURI"
+fi
 
 # Read altered values from file.
 # shellcheck source=/dev/null
