@@ -1041,11 +1041,9 @@ Usage: $DOCKER4GIS_COMMAND $action EXECUTABLE [ARG...]
 If \`$DOCKER4GIS_COMMAND\` should be executed, use \`self\` instead, e.g.
 \`$DOCKER4GIS_COMMAND $action self bump push\`"
 
-    # In the monorepo: if we're in a component (parent dir is 'components'),
-    # iterate sibling components and the package root (../../).
-    # If we're in the package root, iterate ./components/* and the package itself.
     run_in_dir() {
         local dir=$1
+        shift
         [ -d "$dir" ] || return
         if (
             cd "$dir" || exit
@@ -1061,17 +1059,30 @@ If \`$DOCKER4GIS_COMMAND\` should be executed, use \`self\` instead, e.g.
         fi
     }
 
-    if [ "$(basename "$(realpath ..)")" = "components" ]; then
-        # We're in a component: iterate all sibling components (including ^package).
-        for dir in ../*; do
-            run_in_dir "$dir" "$@"
+    # Find the monorepo root from any subdirectory: look for a .env with
+    # DOCKER4GIS_ROOT=true, walking up from the current directory.
+    find_root() {
+        local dir
+        dir=$(realpath .)
+        while [ "$dir" != "/" ]; do
+            if grep -q "^DOCKER4GIS_ROOT=true" "$dir/.env" 2>/dev/null; then
+                echo "$dir"
+                return 0
+            fi
+            dir=$(dirname "$dir")
         done
-    else
-        # We're in the package root: iterate all components.
-        for dir in ./components/*/; do
-            run_in_dir "$dir" "$@"
-        done
-    fi
+        return 1
+    }
+
+    root=$(find_root) || {
+        echo "Could not find monorepo root (no .env with DOCKER4GIS_ROOT=true found)." >&2
+        exit 1
+    }
+
+    for dir in "$root"/components/*/; do
+        run_in_dir "$dir" "$@"
+    done
+
     # Reflect that we ran something, and that every run was successful.
     [ "$any" ] && ! [ "$error" ]
     ;;

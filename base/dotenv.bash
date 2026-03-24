@@ -8,6 +8,18 @@ dotenv() {
 
     if [ -e "$file" ]; then
         [ "$flag" = 'export' ] && set -a
+
+        # If the target .env belongs to a component (../../.env is the root),
+        # source the root .env first so its values are available as defaults.
+        local component_dir
+        component_dir=$(realpath "$(dirname "$file")")
+        local root_env
+        root_env=$(dirname "$(dirname "$component_dir")")/.env
+        if [ -e "$root_env" ] && grep -q "^DOCKER4GIS_ROOT=true" "$root_env"; then
+            # shellcheck source=/dev/null
+            source "$root_env"
+        fi
+
         # shellcheck source=/dev/null
         source "$file"
         if [ "$PIPELINE" ]; then
