@@ -57,20 +57,33 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
     fi
 
     if [ "$PR" ]; then
-        # Create a policy to require a successful build before merging.
-        log Create build policy "$name"
-        path_filter_args=()
-        [ -n "$YAML_DIR" ] && path_filter_args=(--path-filter "/components/$COMPONENT/*")
-        response=$(az repos policy build create --blocking true \
-            --build-definition-id "$build_definition_id" \
-            --repository-id "$REPOSITORY_ID" \
-            --branch main \
-            --display-name "$name" \
-            --enabled true \
-            --manual-queue-only false \
-            --queue-on-source-update-only false \
-            --valid-duration 0 \
-            "${path_filter_args[@]}")
+        # Create a policy to require a successful build before merging,
+        # but only if no policy for this build definition already exists.
+        existing_policy=$(/devops/rest.sh project GET policy/configurations \
+            "policyType=0609bce9-af00-4e28-ba36-3e2fb89c6e9e")
+        already_exists=$(node --print "
+            var policies = ($existing_policy).value || [];
+            policies.some(function(p) {
+                return p.settings && p.settings.buildDefinitionId === $build_definition_id;
+            });
+        ")
+        if [ "$already_exists" = true ]; then
+            log "Build policy $name already exists; skip"
+        else
+            log Create build policy "$name"
+            path_filter_args=()
+            [ -n "$YAML_DIR" ] && path_filter_args=(--path-filter "/components/$COMPONENT/*")
+            response=$(az repos policy build create --blocking true \
+                --build-definition-id "$build_definition_id" \
+                --repository-id "$REPOSITORY_ID" \
+                --branch main \
+                --display-name "$name" \
+                --enabled true \
+                --manual-queue-only false \
+                --queue-on-source-update-only false \
+                --valid-duration 0 \
+                "${path_filter_args[@]}")
+        fi
     else
         # Permit the continuous integration pipeline to use the deployment
         # environments and service connections.
