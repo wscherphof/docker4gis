@@ -1058,7 +1058,7 @@ devops)
     help "Provision a $docker4gis setup in a Azure DevOps project.
 
 Usage:
-- $DOCKER4GIS_COMMAND $action [components|c] [--project|-p PROJECT] [COMPONENT[=REPOSITORY]...]
+- $DOCKER4GIS_COMMAND $action [components|c] [--project|-p PROJECT] [COMPONENT...]
 - $DOCKER4GIS_COMMAND $action set|s pat|t|registry|r|organisation|o|pool|p VALUE
 
 => You need a Personal Access Token (PAT) of a user that has the right to create
@@ -1067,14 +1067,16 @@ Project Administrator). Create a PAT with scope \"full access\". See for
 instructions:
 https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?toc=%2Fazure%2Fdevops%2Forganizations%2Ftoc.json&view=azure-devops&tabs=Windows
 
-The \"components\" action (which is the default) creates a new Project in Azure 
-DevOps, with several Repositories (the \"^package\", the \"proxy\", and
-components additionally specified), each with a Branch Policy set on the \"main\"
-branch, and each with a Build Validation Pipeline (which runs automatically on
-each new or modified Pull Request, and wich has to succeed before the PR can be
-completed), and a Continuous Integration Pipeline, which runs automatically on
-each PR merge/completion. Each \"main\" branch won't allow direct commits, only
-PR merges.
+The \"components\" action (which is the default) creates a new Project in Azure
+DevOps, with a single monorepo Repository (named after the project/DOCKER_USER).
+The repository contains the package at the root and all components under
+\`components/<name>/\`. Each component gets its own Build Validation Pipeline
+(triggered automatically on each new or modified Pull Request), scoped to its
+path (\`components/<name>/*\`) via a path filter on the branch policy, so only
+relevant changes trigger a build. The package gets a Build Validation Pipeline
+covering the whole repo. Each pipeline must succeed before its PR can be
+completed. A Continuous Integration Pipeline is also created for each, running
+automatically on each PR merge/completion.
 
 => Edit the generated \"docker4gis\" Variable Group (Pipelines | Library |
 docker4gis) to set the proper value for the DOCKER_PASSWORD variable, which is
@@ -1082,23 +1084,19 @@ needed for Pipelines to pull and push images from/to your Docker Registry.
 
 Additionally, a \"TEST\" and \"PRODUCTION\" Environment are created, each with a
 template SSH Service Connection. Both Environments require manual Approval by a
-project Team member, so the respective Deployment Stages of the ^package's
+project Team member, so the respective Deployment Stages of the package's
 Continuous Integration Pipeline aren't run automatically. Edit the Service
 Connection details (Project settings | Pipelines | Service connections), before
 removing the TEST Environment Approval Check (Pipelines | Environments |
 TEST/PRODUCTION | Approvals and checks | {hover} | ⁝ | Delete).
 
 The \"components\" action will ask you to type in the Project name (or accept a
-default value), unless you specify it through the --project|-p option.
+default value based on DOCKER_USER), unless you specify it through the
+--project|-p option.
 
-A Repository (and its Policies and Pipelines) is created for each component you
-list (plus \"^package\" and \"proxy\"). For an existing Project, existing
-Repositories are left untouched, and newly listed ones are added.
-
-A simple name results in a Repository with that name, initialised as an
-extension of the $docker4gis base component with the same name. List a
-component=repository pair to get a Repository name that is different from the
-base component name; e.g. \"angular=app\", or \"postgrest=api\".
+A component is created for each name you list (plus \"proxy\" which is always
+included). For an existing Project, existing components are left untouched, and
+newly listed ones are added.
 
 The \"set\" action saves the value of a variable to the local file
 \`~/$docker4gis-$action.env\`. If any of the variables is not set, the
@@ -1123,7 +1121,7 @@ Usage: $DOCKER4GIS_COMMAND init | component [local] | build|b [COMPONENT] [ARG..
   version|v [local] | bump [push] | standalone | git-push|gp [BRANCH_NAME...] |
   run-single|rs [DOCKER_TAG] [DOCKER_REPO] [DOCKER_USER] [DOCKER_REGISTRY] |
   bats | all EXECUTABLE|self [ARG...] |
-  devops [components|c] [--project|-p PROJECT] [COMPONENT[=REPOSITORY]...] |
+  devops [components|c] [--project|-p PROJECT] [COMPONENT...] |
   devops set|s pat|p|registry|r|organisation|o|default|d|vpn|v VALUE
 Note that build, run, br, push, test, stop, unbuild, and geoserver run with the
   $docker4gis version of DOCKER4GIS_VERSION from the current directory's .env.

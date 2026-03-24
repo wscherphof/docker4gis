@@ -259,22 +259,6 @@ git_clone() {
         /devops/git_origin.sh clone
 }
 
-# Create a docker4gis component for the repo $REPOSITORY.
-dg_init_component() {
-    log "dg init/component $COMPONENT in $REPOSITORY" &&
-        cd ~/"$SYSTEM_TEAMPROJECT/$REPOSITORY" &&
-        if [ "$REPOSITORY" = ^package ]; then
-            dg init "$DOCKER_REGISTRY"
-        else
-            dg component "$COMPONENT"
-        fi || return
-
-    log "Push $REPOSITORY changes" &&
-        git add . &&
-        git commit -m "docker4gis init/component" &&
-        git push origin
-}
-
 # Create the Environments, each with an Approval check, and an SSH Service
 # Connection. Do this before creating any pipelines referencing the
 # environments, because that will create them automatically, and in a state that
@@ -307,71 +291,100 @@ fi
 export VARIABLE_GROUP_ID
 
 # ------------------------------------------------------------------------------
-# Begin of the main loop over the components.
+# Begin of the main monorepo setup.
 # ------------------------------------------------------------------------------
 
-# Add required components to the ones provided as arguments.
-components=(^package proxy "$@")
-# Make components lowercase.
-components=("${components[@],,}")
+# The monorepo: one repository for the entire project.
+REPOSITORY=$DOCKER_USER
+export REPOSITORY
 
-log Components: "${components[@]}"
+# Build the list of non-package components from args. Proxy is always included.
+non_package_components=(proxy)
+for c in "$@"; do
+    IFS='=' read -r comp _ <<<"$c"
+    comp=${comp,,}
+    [[ " ${non_package_components[*]} " == *" $comp "* ]] ||
+        non_package_components+=("$comp")
+done
+
+log "Components: package ${non_package_components[*]}"
 
 # Temporarily allow "Bypass policies when pushing" for "Project Administrators".
 policy_exempt allow || exit
 
-# Create the repositories, components, and pipelines.
-for component_repository in "${components[@]}"; do
+repository_result=0
 
-    # Split component_repository into component and repository, using = as the
-    # separator.
-    IFS='=' read -r COMPONENT REPOSITORY <<<"$component_repository"
-    # shellcheck disable=SC2269
-    {
-        # Just to see the values in the log.
-        component_repository="$component_repository"
-        COMPONENT=$COMPONENT
-        REPOSITORY=$REPOSITORY
-    }
-    REPOSITORY=${REPOSITORY:-$COMPONENT}
-    export COMPONENT REPOSITORY
+# Create the repository if it doesn't exist.
+if az repos show --repository "$REPOSITORY" &>/dev/null; then
+    log "Repository $REPOSITORY already exists"
+    REPOSITORY_ID=$(az repos show --repository "$REPOSITORY" --query id --output tsv)
+    export REPOSITORY_ID
+else
+    create_repository || repository_result=$?
+fi
 
-    repository_result=0
+# Clone the repo if not already present locally.
+if [ "$repository_result" = 0 ] && ! [ -d ~/"$SYSTEM_TEAMPROJECT/$REPOSITORY" ]; then
+    git_clone || repository_result=$?
+fi
 
-    # Skip if the repository already exists.
-    if az repos show --repository "$REPOSITORY" &>/dev/null; then
-        log "Repository $REPOSITORY already exists"
-        # Need the package directory for creating other components.
-        [ "$REPOSITORY" = ^package ] && git_clone
-        continue
-    fi
+# Initialise the package and components in the monorepo.
+if [ "$repository_result" = 0 ]; then
+    (
+        cd ~/"$SYSTEM_TEAMPROJECT/$REPOSITORY" || exit 1
+        needs_push=false
 
-    # Create the repository, its docker4gis component, and its pipelines.
-    create_repository &&
-        git_clone &&
-        dg_init_component &&
-        /devops/pipelines.sh
+        # Initialise the package at the repo root.
+        if ! [ -f .env ]; then
+            log "dg init in $REPOSITORY"
+            dg init "$DOCKER_REGISTRY" || exit 1
+            needs_push=true
+        fi
 
-    repository_result=$?
-    [ "$repository_result" = 0 ] || {
-        log "Error: non-zero repository_result: $repository_result"
-        break
-    }
+        # Initialise each component in components/<name>/.
+        for component in "${non_package_components[@]}"; do
+            if ! [ -d "components/$component" ]; then
+                log "dg component $component in $REPOSITORY"
+                mkdir -p "components/$component" &&
+                    cd "components/$component" &&
+                    dg component &&
+                    cd ~/"$SYSTEM_TEAMPROJECT/$REPOSITORY" || exit 1
+                needs_push=true
+            fi
+        done
+
+        if $needs_push; then
+            git add . &&
+                git commit -m "docker4gis init/component" &&
+                git push origin || exit 1
+        fi
+    ) || repository_result=$?
+fi
+
+# Create pipelines for the package (YAML files at repo root).
+if [ "$repository_result" = 0 ]; then
+    COMPONENT="" YAML_DIR="" /devops/pipelines.sh || repository_result=$?
+fi
+
+# Create pipelines for each component (YAML files under components/<name>/).
+for component in "${non_package_components[@]}"; do
+    [ "$repository_result" = 0 ] || break
+    COMPONENT=$component YAML_DIR="components/$component" /devops/pipelines.sh \
+        || repository_result=$?
 done
 
 # Undo temporarily allow "Bypass policies when pushing" for "Project
 # Administrators".
 policy_exempt deny || exit
 
-# Exit if any repository creation failed - but only after undoing the policy
-# change.
+# Exit if any step failed - but only after undoing the policy change.
 [ "$repository_result" = 0 ] || {
     log "Error: non-zero repository_result: $repository_result"
     exit "$repository_result"
 }
 
 # ------------------------------------------------------------------------------
-# End of the main loop over the components.
+# End of the main monorepo setup.
 # ------------------------------------------------------------------------------
 
 # Delete the default repository, if we created a new project.

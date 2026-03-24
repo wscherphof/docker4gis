@@ -19,7 +19,7 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
 
     PR=
     triggers=
-    name=$REPOSITORY
+    name=${COMPONENT:-$REPOSITORY}
 
     [ "$yaml" = "$build_validation_yaml" ] && PR=true
 
@@ -39,7 +39,7 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
             \"name\": \"$REPOSITORY\"
         },
         \"process\": {
-            \"yamlFilename\": \"$yaml\",
+            \"yamlFilename\": \"${YAML_DIR:+$YAML_DIR/}$yaml\",
             \"type\": 2
         },
         \"variableGroups\": [ { \"id\": $VARIABLE_GROUP_ID } ],
@@ -52,6 +52,8 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
     if [ "$PR" ]; then
         # Create a policy to require a successful build before merging.
         log Create build policy "$name"
+        path_filter_args=()
+        [ -n "$YAML_DIR" ] && path_filter_args=(--path-filter "/components/$COMPONENT/*")
         response=$(az repos policy build create --blocking true \
             --build-definition-id "$build_definition_id" \
             --repository-id "$REPOSITORY_ID" \
@@ -60,7 +62,8 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
             --enabled true \
             --manual-queue-only false \
             --queue-on-source-update-only false \
-            --valid-duration 0)
+            --valid-duration 0 \
+            "${path_filter_args[@]}")
     else
         # Permit the continuous integration pipeline to use the deployment
         # environments and service connections.
@@ -100,7 +103,7 @@ for yaml in "$continuous_integration_yaml" "$build_validation_yaml"; do
 
             pipelinePermissions endpoint
 
-            [ "$REPOSITORY" = ^package ] || environment+=_SINGLE
+            [ -z "$YAML_DIR" ] || environment+=_SINGLE
             pipelinePermissions environment
         done
     fi
