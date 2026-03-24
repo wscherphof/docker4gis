@@ -120,6 +120,8 @@ pipeline() {
         # write - 1. Initialise variables.
 
         local trigger=none
+        local trigger_paths=""
+        local trigger_yaml="- $trigger"
         local pr=$main
         local stage=pr_stage
         local stage_display_name='Pull Request stage'
@@ -129,6 +131,15 @@ pipeline() {
 
         [ "$file" = "$continuous_integration" ] && {
             trigger=$main
+            if ! [ "$is_base_component" ]; then
+                trigger_paths="
+  paths:
+    include:
+    - components/$dir_name"
+            fi
+            trigger_yaml="  branches:
+    include:
+    - $trigger$trigger_paths"
             pr=none
             stage=ci_stage
             stage_display_name='Continuous Integration stage'
@@ -182,8 +193,7 @@ pipeline() {
         # first job of a first stage.
 
         echo "trigger:
-- $trigger
-
+$trigger_yaml
 pr:
 - $pr
 
