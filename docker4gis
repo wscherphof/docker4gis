@@ -500,10 +500,11 @@ MYSQL_HOST=
 MYSQL_DATABASE=
 MYSQL_ROOT_PASSWORD=
 POSTFIX_DESTINATION=
-POSTFIX_DOMAIN=
-DEVOPS_ORGANISATION=${DEVOPS_ORGANISATION:-}
-DEVOPS_DEFAULT_POOL=${DEVOPS_DEFAULT_POOL:-}
-DEVOPS_VPN_POOL=${DEVOPS_VPN_POOL:-}" >>.env
+POSTFIX_DOMAIN=" >>.env
+    # Append DEVOPS vars with proper quoting to handle values with spaces.
+    printf 'DEVOPS_ORGANISATION=%q\n' "${DEVOPS_ORGANISATION:-}" >>.env
+    printf 'DEVOPS_DEFAULT_POOL=%q\n' "${DEVOPS_DEFAULT_POOL:-}" >>.env
+    printf 'DEVOPS_VPN_POOL=%q\n' "${DEVOPS_VPN_POOL:-}" >>.env
 
     mkdir -p "components/^package"
 

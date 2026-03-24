@@ -17,10 +17,12 @@ fi
 write_root_env() {
     local key=$1 value=$2
     [ -n "$ROOT_ENV_FILE" ] && [ -f "$ROOT_ENV_FILE" ] || return 0
+    local quoted_value
+    quoted_value=$(printf '%q' "$value")
     if grep -q "^$key=" "$ROOT_ENV_FILE"; then
-        sed -i "s|^$key=.*|$key=$value|" "$ROOT_ENV_FILE"
+        sed -i "s|^$key=.*|$key=$quoted_value|" "$ROOT_ENV_FILE"
     else
-        echo "$key=$value" >>"$ROOT_ENV_FILE"
+        printf '%s=%s\n' "$key" "$quoted_value" >>"$ROOT_ENV_FILE"
     fi
 }
 
