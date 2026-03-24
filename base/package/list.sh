@@ -30,13 +30,16 @@ error() {
     finish 1
 }
 
-# In the monorepo, components live in ./components/ subdirectories.
-for comp_dir in ./components/*/; do
+# In the monorepo, the ^package component lives at components/^package/.
+# Sibling components are at ../../components/*/.
+for comp_dir in ../../components/*/; do
     [ -d "$comp_dir" ] || continue
+    comp_name=$(basename "$comp_dir")
+    # Skip the ^package component itself.
+    [ "$comp_name" = "^package" ] && continue
     # Start a subshell to prevent overwriting environment variables.
     (
         DOCKER4GIS_VERSION=
-        DOCKER_REGISTRY=
         DOCKER_USER=
         DOCKER_REPO=
 
@@ -45,20 +48,23 @@ for comp_dir in ./components/*/; do
         # shellcheck source=/dev/null
         . "$comp_env"
 
-        [ "$DOCKER_REPO" ] || DOCKER_REPO=$(basename "$(realpath "$comp_dir")")
+        [ "$DOCKER_REPO" ] || DOCKER_REPO=$comp_name
 
         # Skip standalone components.
         [ -n "$DOCKER4GIS_STANDALONE" ] && exit
         # Must be a valid docker4gis component directory.
-        [ "$DOCKER4GIS_VERSION" ] && [ "$DOCKER_REGISTRY" ] && [ "$DOCKER_USER" ] && [ "$DOCKER_REPO" ] || exit
+        [ "$DOCKER4GIS_VERSION" ] && [ "$DOCKER_REPO" ] || exit
 
-        packagejson="${comp_dir}package.json"
-        [ -f "$packagejson" ] || exit
-        version=$(node --print "require('$packagejson').version")
-        if [ "$version" = 0.0.0 ]; then
+        # Look for the version tracking file in ./components/ (relative to
+        # the ^package dir), updated on each `dg push` of that component.
+        tracking_file="./components/$DOCKER_REPO"
+        if [ -f "$tracking_file" ]; then
+            version=$(cat "$tracking_file")
+        elif [ "$directive" = dirty ]; then
             version=latest
         else
-            version=v$version
+            echo "> ERROR: version unknown for '$DOCKER_REPO'; run \`dg push\` in that component first" >&2
+            exit 1
         fi
 
         # Add this component's version to the collection.

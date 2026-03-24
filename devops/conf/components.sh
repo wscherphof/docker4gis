@@ -357,9 +357,9 @@ if [ "$repository_result" = 0 ]; then
     ) || repository_result=$?
 fi
 
-# Create pipelines for the package (YAML files at repo root).
+# Create pipelines for the ^package component.
 if [ "$repository_result" = 0 ]; then
-    COMPONENT="" YAML_DIR="" /devops/pipelines.sh || repository_result=$?
+    COMPONENT="^package" YAML_DIR="components/^package" /devops/pipelines.sh || repository_result=$?
 fi
 
 # Create pipelines for each component (YAML files under components/<name>/).

@@ -4,6 +4,7 @@ dotenv() {
 
     DOCKER4GIS_VERSION=
     DOCKER_REPO=
+    DOCKER4GIS_ROOT=
 
     if [ -e "$file" ]; then
         [ "$flag" = 'export' ] && set -a
