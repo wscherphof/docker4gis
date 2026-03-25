@@ -11,18 +11,16 @@ New as in:
 
 # Getting started
 
-## Configure an alias
+## Install
 
 In a Bash terminal on a Linux machine (Windows Subsystem for Linux (WSL) is
 fine), run:
 
 ```
-npx docker4gis
+npm install -g docker4gis
 ```
 
-This will install a command `dg` in `~/.local.bin` that you will use to run
-docker4gis actions. It does nothing more than passing any parameters to the
-command `npx --yes docker4gis@latest`.
+This will install a command `dg` that you will use to run docker4gis actions.
 
 ## Setup new project
 
@@ -34,10 +32,7 @@ Clone your project's Git repo, cd into its root, and run
 dg init
 ```
 
-It will ask you which docker registry to use, how the application is called,
-and whether you want to create an "alias" (if you don'thave it already) for the
-docker4gis command (so that you can type e.g. `dg init` instead of `npx --yes
-docker4gis@latest init`).
+It will ask you which docker registry to use, and how the application is called.
 
 This _package_ repo is to manage the application's package image, which is used
 to run a specific version of the application, with all the specific versions of
