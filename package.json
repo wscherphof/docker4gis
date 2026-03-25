@@ -6,9 +6,6 @@
     "docker4gis": "docker4gis",
     "dg": "dg"
   },
-  "scripts": {
-    "postinstall": "rm $(npm get prefix)/bin/docker4gis"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/merkatorgis/docker4gis.git"
