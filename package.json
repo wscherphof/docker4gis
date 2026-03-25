@@ -3,7 +3,11 @@
   "version": "0.0.275",
   "description": "Extensible linked Docker images for common GIS components. Created by https://www.merkator.com",
   "bin": {
-    "docker4gis": "docker4gis"
+    "docker4gis": "docker4gis",
+    "dg": "dg"
+  },
+  "scripts": {
+    "postinstall": "rm $(npm get prefix)/bin/docker4gis"
   },
   "repository": {
     "type": "git",
