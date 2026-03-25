@@ -6,7 +6,7 @@ New as in:
 
 - docker4gis as an npm package (automatic installation through
   [npx](https://www.npmjs.com/package/npx));
-- components as seperate git repos;
+- monorepo: all components in a single git repo;
   - supporting pipelines in the git hosting environment.
 
 # Getting started
@@ -26,7 +26,7 @@ This will install a command `dg` that you will use to run docker4gis actions.
 
 ### Package
 
-Clone your project's Git repo, cd into its root, and run
+Clone your project's Git repo (the **monorepo**), cd into its root, and run
 
 ```
 dg init
@@ -34,8 +34,8 @@ dg init
 
 It will ask you which docker registry to use, and how the application is called.
 
-This _package_ repo is to manage the application's package image, which is used
-to run a specific version of the application, with all the specific versions of
+The repo root becomes the _package_ directory. The package image is used to
+run a specific version of the application, with all the specific versions of
 the application's different components.
 
 ### Components
@@ -43,18 +43,17 @@ the application's different components.
 The application's "components" are the different containers that comprise the
 running application: proxy, app, api, database, geoserver, etc.
 
-To add a component: create another repo for it, clone the component repo _as a
-sibling of the package directory_ (this is important), cd into its root, and run
+To add a component: create a subdirectory in `components/`, cd into it, and run
 
 ```
+mkdir -p components/proxy && cd components/proxy
 dg component
 ```
 
-(assuming you had the docker4gis alias created with its default
-name). It will ask you how to call the component, which base docker4gis
-component it should extend, and which version of the base component to use
-(default is `latest`). If the base component has multiple "flavours", the
-flavours are listed, and you're asked to choose one.
+(assuming you had the docker4gis alias created with its default name). It will
+ask you which base docker4gis component it should extend, and which version of
+the base component to use (default is `latest`). If the base component has
+multiple "flavours", the flavours are listed, and you're asked to choose one.
 
 The available docker4gis base components all reside in their proper repo under
 [https://github.com/merkatorgis/docker4gis-{name}](https://github.com/merkatorgis/docker4gis-{name}),
@@ -63,35 +62,50 @@ e.g. [proxy](https://github.com/merkatorgis/docker4gis-proxy).
 Should you need a component that won't act as a "server" that should be started
 when the application is run, run `dg standalone` after `dg component`.
 
+The resulting monorepo structure looks like:
+
+```
+myapp/                   ← monorepo root = package directory
+  .env                   ← DOCKER_REPO=package, DOCKER_USER=myapp, …
+  package.json
+  components/
+    proxy/               ← proxy component
+      .env               ← DOCKER_REPO=proxy
+      package.json
+      Dockerfile
+    app/                 ← app component
+      …
+```
+
 ## Build and run
 
-From a component directory, you can build its image by issuing `dg build`. When
-all components are built, you can run the application with `dg run`.
+From a component directory (`components/<name>/`), you can build its image by
+issuing `dg build`. When all components are built, you can run the application
+with `dg run` (from either the package root or a component directory).
 
 When you make a change to a component, and want to see its effect, you can build
 the component's image and run the application with the new image in one go,
 using `dg br` (for build & run).
 
 Note that you can pass the component name (or `package`) to build the image from
-a sibling directory, e.g. `dg build app`, or `dg br proxy`.
+the package root, e.g. `dg build app`, or `dg br proxy`.
 
 ## Push
 
 When you're happy with the changes you made to a component, and you've seen it
 running successfully, you should _push_ it by running `dg push` from the
-component directory.
+component directory (`components/<name>/`).
 
 This will push the new image to the Docker registry (presuming you have logged
-in using `docker login`), write a version file to the repo, containing an
-incremented integer version number (starting by 1), tag the git repo with
-`v-{version_number}`, commit the changes, and push them to `origin`.
+in using `docker login`), write a version to the component's `package.json`,
+tag the git repo with `v-{version_number}`, commit the changes, and push them
+to `origin`.
 
 ## Build the package
 
-Each time you `dg run` the application, the package directory is updated with
-the current component version numbers, which are read from the version files
-that `dg push` generates. For components that haven't been pushed yet, a version
-`latest` is listed in the package directory.
+Each time you `dg run` the application, component versions are read from each
+component's `package.json`. For components that haven't been pushed yet, a
+version `latest` is used.
 
 Once all components are pushed, you can issue `dg build` from the package
 directory to create a new package image. The package image includes the list of
@@ -115,16 +129,21 @@ Your Git hosting environment (like GitHub, Azure DevOps, BitBucket, or GitLab)
 probably provides a mechanism to automate things when changes are merged. You
 could then create a "pipeline" (this is what it's called in Azure DevOps) that
 is triggered by a merge in the `main` branch, and performs a _build_ and, when
-successful, a _push_. The definition of such a pilepine differs per Git hosting
+successful, a _push_. The definition of such a pipeline differs per Git hosting
 environment. For Azure DevOps, a basic pipeline is generated on `dg init` and
 `dg component`.
+
+In the monorepo, each component has its own pipeline YAML files in
+`components/<name>/`. Azure DevOps pipeline definitions point to these files.
+The pipeline steps use `workingDirectory: components/<name>` so that
+docker4gis commands run in the correct component subdirectory.
 
 Note that the pipeline needs access to the Docker registry; in the generated
 pipelines, there's a variable `DOCKER_PASSWORD` that you should provision. Also,
 Git permissions are required for the pipeline to commit new version files and
-tags. In Azure DevOps, this is configured in Project Settings | Repsitories |
+tags. In Azure DevOps, this is configured in Project Settings | Repositories |
 All Repositories | Security; the user `{project name} Build Service
-({organsation name})` should get `Allow` for the items "Bypass policies when
+({organisation name})` should get `Allow` for the items "Bypass policies when
 pushing", "Contribute", "Create tag", and "Read".
 
 Remember that now the `push` action happens _automatically_, you should refrain
@@ -132,7 +151,7 @@ from issuing it "manually" from your development environment.
 
 A companion feature of Azure DevOps is [build
 validation](https://learn.microsoft.com/en-us/azure/devops/repos/git/branch-policies?view=azure-devops&tabs=browser#build-validation).
-To enable this for the a branch, you provide another pipeline definition. Then,
+To enable this for a branch, you provide another pipeline definition. Then,
 every change to that branch has to come from a pull request; no one can directly
 commit to the designated branch anymore. On creation of the pull request (and
 any subsequent commit to it), the given pipeline is run, and the pull request
@@ -156,19 +175,21 @@ Just run `dg devops` to get started. Run `dg help devops` for more information.
 
 So, in short, what you typically do is:
 
-1. In your new Git repo: `npx --yes docker4gis@latest init` (or `dg init`, if
-   you already have the _alias_) to initialise your application's _package_.
-1. Create a separate Git repo for each _component_, clone it as a sibling of the
-   package repo, and `dg component` to initialise it. The available base
-   components are found as repos at
+1. In your new Git repo (the monorepo): `npx --yes docker4gis@latest init` (or
+   `dg init`, if you already have the _alias_) to initialise your application's
+   _package_.
+1. For each _component_: create `components/<name>/`, cd into it, and `dg
+   component` to initialise it. The available base components are found as repos
+   at
    [https://github.com/merkatorgis/docker4gis-{name}](https://github.com/merkatorgis?tab=repositories).
-1. Build each component using `dg build`.
-1. Run the application using `dg run`.
+1. Build each component using `dg build` (from within `components/<name>/`).
+1. Run the application using `dg run` (from the package root or any component).
    1. As a convenience, to build one component, and run the new image, you can
       use `dg br` ("build & run").
 1. Tag a component's version, and push the versioned image to the Docker
-   registry, using `dg push`.
-1. Once all components are pushed, `dg build` and `dg push` the package as well.
+   registry, using `dg push` (from `components/<name>/`).
+1. Once all components are pushed, `dg build` and `dg push` the package as well
+   (from the package root).
 1. On the server:
    1. Run the package image (once) to echo the script that runs the application:
       `docker container run --rm {DOCKER_REGISTRY}/{DOCKER_USER}/package:{tag} >
@@ -177,19 +198,15 @@ docker.example.com/theapp/package:237 > theapp`.
    1. Edit the variables in the file to match the environment.
    1. Make the file executable: `chmod +x theapp`.
    1. Execute it: `./theapp 237`.
-1. Optionally, configure the repos in your Git hosting environment to use the
+1. Optionally, configure the monorepo in your Git hosting environment to use the
    _pipelines_:
-   1. Use the _continuous integration_ pipeline to (build and) push
-      automatically on each commit to the `main` branch.
+   1. Use the _continuous integration_ pipeline (in each `components/<name>/`)
+      to push automatically on each commit to the `main` branch.
    1. Use the _build validation_ pipeline to disallow direct commits to `main`
       and automatically run the build on each _pull request_ before its changes
       can be merged.
 1. Optionally, if you have Azure DevOps, have all above steps carried out
    automatically, using `dg devops`.
-
-**When you have Azure DevOps, the above steps can be run automatically in a
-newly created DevOps project, using `dg project-template`. See
-[instructions](../base/project-template/doc.txt).**
 
 ## Background: version management
 

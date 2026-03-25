@@ -6,11 +6,10 @@
 # echo
 # set -x
 
-# Compiles a list of commands to run all repos' containers.
+# Compiles a list of commands to run all components' containers.
 
 # Either empty (we're creating the package image's run.sh script from the
-# build.sh), or 'dirty' (we're running without a package image, from a component
-# or package repo in the dev env).
+# build.sh), or 'dirty' (we're running without a package image, in the dev env).
 directive=$1
 
 BASE=$BASE
@@ -18,12 +17,11 @@ DOCKER_BASE=$DOCKER_BASE
 DOCKER_REGISTRY=$DOCKER_REGISTRY
 DOCKER_USER=$DOCKER_USER
 
+# Use a temp dir to collect component name→version mappings.
 temp_components=$(mktemp -d)
-package_dir_container=$(mktemp)
 
 finish() {
     rm -rf "$temp_components"
-    rm -f "$package_dir_container"
     exit "${1:-0}"
 }
 
@@ -32,77 +30,49 @@ error() {
     finish 1
 }
 
-# In the dev env, component repos should be found as siblings of the current
-# directory.
-for dotenv in ../*/.env; do
-    # Break when there's none.
-    [ -f "$dotenv" ] || break
+# In the monorepo, the ^package component lives at components/^package/.
+# Sibling components are at ../../components/*/.
+for comp_dir in ../../components/*/; do
+    [ -d "$comp_dir" ] || continue
+    comp_name=$(basename "$comp_dir")
+    # Skip the ^package component itself.
+    [ "$comp_name" = "^package" ] && continue
     # Start a subshell to prevent overwriting environment variables.
     (
         DOCKER4GIS_VERSION=
-        DOCKER_REGISTRY=
         DOCKER_USER=
         DOCKER_REPO=
 
+        comp_env="${comp_dir}.env"
+        [ -f "$comp_env" ] || exit
         # shellcheck source=/dev/null
-        . "$dotenv"
+        . "$comp_env"
 
-        [ "$DOCKER_USER" ] || DOCKER_USER=$(basename "$(realpath "$(dirname "$dotenv")/..")")
-        [ "$DOCKER_REPO" ] || DOCKER_REPO=$(basename "$(realpath "$(dirname "$dotenv")")")
+        [ "$DOCKER_REPO" ] || DOCKER_REPO=$comp_name
 
         # Skip standalone components.
         [ -n "$DOCKER4GIS_STANDALONE" ] && exit
-        # If this is a docker4gis repo directory, it must have these variables
-        # set. Otherwise, exit the subshell (which happens to be the last thing
-        # in the for loop).
-        [ "$DOCKER4GIS_VERSION" ] && [ "$DOCKER_REGISTRY" ] && [ "$DOCKER_USER" ] && [ "$DOCKER_REPO" ] || exit
+        # Must be a valid docker4gis component directory.
+        [ "$DOCKER4GIS_VERSION" ] && [ "$DOCKER_REPO" ] || exit
 
-        dir=$(dirname "$dotenv")
-
-        packagejson=$dir/package.json
-        [ -f "$packagejson" ] || exit
-        version=$(node --print "require('$packagejson').version")
-        if [ "$version" = 0.0.0 ]; then
+        # Look for the version tracking file in ./components/ (relative to
+        # the ^package dir), updated on each `dg push` of that component.
+        tracking_file="./components/$DOCKER_REPO"
+        if [ -f "$tracking_file" ]; then
+            version=$(cat "$tracking_file")
+        elif [ "$directive" = dirty ]; then
             version=latest
         else
-            version=v$version
+            echo "> ERROR: version unknown for '$DOCKER_REPO'; run \`dg push\` in that component first" >&2
+            exit 1
         fi
 
-        if [ "$DOCKER_REPO" = package ]; then
-            # Just remember that this was the package directory.
-            echo "$dir" >"$package_dir_container"
-        else
-            [ "$version" = latest ] || {
-                # If the version was updated (to something other than
-                # "latest"), then apparently the image was pushed. Since
-                # that could have been done by the pipeline (out of our
-                # sight), we might locally have a now unwanted leftover
-                # "latest" image.
-                current_version_file=./components/"$DOCKER_REPO"
-                [ -f "$current_version_file" ] && current_version=$(cat "$current_version_file")
-                if ! [ "$current_version" = "$version" ]; then
-                    image=$DOCKER_REGISTRY/$DOCKER_USER/$DOCKER_REPO
-                    docker image rm -f "$image":latest >/dev/null 2>&1
-                fi
-            }
-            # Add this repo's version to the list of components.
-            echo "$version" >"$temp_components"/"$DOCKER_REPO"
-        fi
+        # Add this component's version to the collection.
+        echo "$version" >"$temp_components"/"$DOCKER_REPO"
     )
 done
 
-components=./components
-# Replace the current components list with the new list. In the pipeline, no
-# component siblings are found, and the current list of components remains.
-if ls "$temp_components"/* >/dev/null 2>&1; then
-    package_dir=$(cat "$package_dir_container")
-    [ -d "$package_dir" ] || error "package directory not found"
-    components="$package_dir"/components
-    mkdir -p "$components"
-    rm -f "$components"/*
-    cp "$temp_components"/* "$components"
-fi
-mkdir -p "$components"
+components=$temp_components
 
 if ! ls "$components"/* >/dev/null 2>&1; then
     echo "Zero components." >&2
@@ -180,7 +150,7 @@ add_postgis_ddl() {
     ddl_repo=postgis-ddl
     ddl_repo_file=$components/$ddl_repo
     [ -f "$ddl_repo_file" ] ||
-        error "component '$ddl_repo' is required when 'postgis' is present; add a sibling $ddl_repo repository and run it with this package"
+        error "component '$ddl_repo' is required when 'postgis' is present; add a components/$ddl_repo component directory"
 
     repo=$ddl_repo
     version=$(cat "$ddl_repo_file")
