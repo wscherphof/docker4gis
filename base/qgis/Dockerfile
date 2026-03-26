@@ -4,6 +4,9 @@ FROM camptocamp/qgis-server:3.44.0
 ENV TZ=Europe/Amsterdam
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
+# Point Qt's network disk cache to a directory we control.
+ENV XDG_CACHE_HOME=/var/cache/qgis
+
 # Install php.
 RUN apt update
 RUN apt install -y php libapache2-mod-php
