@@ -8,6 +8,10 @@ if [ "$1" = 'qgis' ]; then
 	mkdir -p "$dir"
 	chown -R www-data "$dir"
 
+	# Ensure Qt network disk cache is writable for the www-data workers.
+	mkdir -p /var/cache/qgis
+	chown www-data:www-data /var/cache/qgis
+
 	# run the QGIS Server
 	exec start-server
 fi
