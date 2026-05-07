@@ -16,6 +16,12 @@ steps:
   sparseCheckoutDirectories: packages/docker4gis-cli
   displayName: Git checkout
 
+# Install npm dependencies (provides bats) and run the CLI unit tests.
+- bash: |
+    npm install && npm test
+  displayName: 'Run CLI unit tests'
+  workingDirectory: packages/docker4gis-cli
+
 # Build the package image.
 - bash: |
     ./build.sh
